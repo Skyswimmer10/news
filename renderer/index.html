@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; img-src https: data:; style-src 'self'; script-src 'self'" />
+  <title>NewsGather</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="app">
+    <nav id="sidebar">
+      <div id="logo">📰 NewsGather</div>
+      <button class="nav-btn active" data-view="feed">Feed <span id="unread-badge" class="badge hidden"></span></button>
+      <button class="nav-btn" data-view="saved">Saved</button>
+      <button class="nav-btn" data-view="topics">Topics</button>
+      <button class="nav-btn" data-view="settings">Settings</button>
+      <div id="fetch-status"></div>
+      <button id="fetch-now-btn">⟳ Fetch now</button>
+    </nav>
+
+    <main id="content">
+      <!-- FEED -->
+      <section id="view-feed" class="view">
+        <header class="view-header">
+          <h1>Feed</h1>
+          <div class="filters">
+            <select id="filter-topic"><option value="">All topics</option></select>
+            <select id="filter-type">
+              <option value="">All types</option>
+              <option value="article">Articles</option>
+              <option value="video">Videos</option>
+              <option value="podcast">Podcasts</option>
+            </select>
+            <label class="checkbox-label"><input type="checkbox" id="filter-unread" /> Unread only</label>
+            <button id="mark-all-seen" class="secondary">Mark all as seen</button>
+          </div>
+        </header>
+        <div id="feed-list" class="item-list"></div>
+      </section>
+
+      <!-- SAVED -->
+      <section id="view-saved" class="view hidden">
+        <header class="view-header"><h1>Saved</h1></header>
+        <div id="saved-list" class="item-list"></div>
+      </section>
+
+      <!-- TOPICS -->
+      <section id="view-topics" class="view hidden">
+        <header class="view-header">
+          <h1>Topics</h1>
+          <button id="add-topic-btn">+ Add topic</button>
+        </header>
+        <div id="topic-list"></div>
+
+        <div id="topic-form-wrap" class="hidden">
+          <form id="topic-form">
+            <h2 id="topic-form-title">New topic</h2>
+            <input type="hidden" id="topic-id" />
+            <label>Name
+              <input type="text" id="topic-name" placeholder="e.g. Artificial intelligence" required />
+            </label>
+            <label>Search query
+              <input type="text" id="topic-query" placeholder='e.g. "artificial intelligence" breakthrough' required />
+            </label>
+            <fieldset>
+              <legend>Content types</legend>
+              <label class="checkbox-label"><input type="checkbox" id="type-article" checked /> Articles &amp; blogs</label>
+              <label class="checkbox-label"><input type="checkbox" id="type-video" /> Videos</label>
+              <label class="checkbox-label"><input type="checkbox" id="type-podcast" /> Podcasts</label>
+            </fieldset>
+            <label class="checkbox-label">
+              <input type="checkbox" id="topic-temporary" /> Temporary topic (stops automatically)
+            </label>
+            <label id="end-date-label" class="hidden">Search until (inclusive)
+              <input type="date" id="topic-end-date" />
+            </label>
+            <div class="form-actions">
+              <button type="submit">Save topic</button>
+              <button type="button" id="topic-cancel" class="secondary">Cancel</button>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      <!-- SETTINGS -->
+      <section id="view-settings" class="view hidden">
+        <header class="view-header"><h1>Settings</h1></header>
+        <form id="settings-form">
+          <label>Brave Search API key <span class="hint">(free at brave.com/search/api — better article search; without it Google News RSS is used)</span>
+            <input type="password" id="set-brave-key" placeholder="paste key or leave empty" />
+          </label>
+          <label>YouTube Data API key <span class="hint">(free at console.cloud.google.com — required for video results)</span>
+            <input type="password" id="set-youtube-key" placeholder="paste key or leave empty" />
+          </label>
+          <label>Daily fetch time
+            <input type="time" id="set-fetch-time" />
+          </label>
+          <label>Max new items per topic per fetch
+            <input type="number" id="set-max-items" min="3" max="50" />
+          </label>
+          <div class="form-actions">
+            <button type="submit">Save settings</button>
+          </div>
+          <p id="settings-saved-msg" class="hint hidden">Saved ✓</p>
+          <p class="hint">Podcasts use the free iTunes search — no key needed. Last fetch: <span id="last-fetch">never</span></p>
+        </form>
+      </section>
+    </main>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>

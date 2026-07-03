@@ -1,0 +1,39 @@
+{
+  "name": "newsgather",
+  "productName": "NewsGather",
+  "version": "1.0.0",
+  "description": "Personal news gathering app: daily automatic searches for articles, blogs, videos and podcasts on your topics",
+  "main": "main.js",
+  "author": "skyswimmer10",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "test": "node test/run-tests.js",
+    "dist": "electron-builder --win",
+    "dist:portable": "electron-builder --win portable"
+  },
+  "dependencies": {
+    "fast-xml-parser": "^4.5.0"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.skyswimmer10.newsgather",
+    "productName": "NewsGather",
+    "files": [
+      "main.js",
+      "preload.js",
+      "src/**/*",
+      "renderer/**/*"
+    ],
+    "win": {
+      "target": ["nsis", "portable"]
+    },
+    "nsis": {
+      "oneClick": true,
+      "runAfterFinish": true
+    }
+  }
+}
