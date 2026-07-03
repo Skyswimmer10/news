@@ -1,0 +1,793 @@
+<title>LARP Craft — UX Concepts</title>
+<style>
+  :root{
+    --ground:#13151C; --panel:#1A1D26; --raised:#232836; --line:#2C3140; --line-soft:#242938;
+    --ink:#E9EBF3; --muted:#8B92A6; --faint:#5C6375;
+    --brand:#8B7BF5;
+    --c-narrative:#5CA8F5; --c-location:#43BF87; --c-enemy:#E86464;
+    --c-item:#E0A23C; --c-mechanic:#A87BF0; --c-sensor:#3EC6D6;
+    --ok:#43BF87; --warn:#E0A23C; --bad:#E86464;
+    --mono:"Cascadia Code","SF Mono",Consolas,ui-monospace,monospace;
+    --sans:"Segoe UI Variable","Segoe UI",system-ui,-apple-system,sans-serif;
+    --page-bg:#0D0F14; --page-ink:#E9EBF3; --page-muted:#8B92A6;
+  }
+  :root[data-theme="light"]{ --page-bg:#ECEDF2; --page-ink:#23262F; --page-muted:#5C6375; }
+  @media (prefers-color-scheme: light){ :root:not([data-theme="dark"]){ --page-bg:#ECEDF2; --page-ink:#23262F; --page-muted:#5C6375; } }
+  *{box-sizing:border-box; margin:0}
+  html,body{height:100%}
+  body{background:var(--page-bg); color:var(--page-ink); font-family:var(--sans); padding:28px 20px 60px; -webkit-font-smoothing:antialiased}
+  .page{max-width:1480px; margin:0 auto; display:flex; flex-direction:column; gap:18px}
+
+  .intro{display:flex; flex-wrap:wrap; align-items:flex-end; justify-content:space-between; gap:16px}
+  .intro h1{font-size:22px; font-weight:650; letter-spacing:-.01em}
+  .intro h1 .mark{display:inline-block; width:13px; height:13px; border-radius:4px; background:linear-gradient(135deg,var(--brand),var(--c-sensor)); margin-right:9px}
+  .intro p{color:var(--page-muted); font-size:13.5px; margin-top:5px; max-width:64ch}
+  .switch{display:flex; gap:6px; background:rgba(128,128,150,.10); padding:5px; border-radius:11px}
+  .switch button{font:inherit; font-size:13px; font-weight:600; color:var(--page-muted); background:none; border:0; padding:8px 15px; border-radius:8px; cursor:pointer}
+  .switch button:hover{color:var(--page-ink)}
+  .switch button:focus-visible{outline:2px solid var(--brand); outline-offset:1px}
+  .switch button.on{background:var(--brand); color:#fff}
+  .switch button .k{display:inline-block; margin-right:7px; width:8px; height:8px; border-radius:3px; vertical-align:1px}
+  .switch button.on .k{background:rgba(255,255,255,.9)!important}
+
+  /* ------- app frame (deliberately dark: it depicts the app itself) ------- */
+  .frame{background:var(--ground); color:var(--ink); border-radius:14px; border:1px solid rgba(120,128,160,.22);
+         box-shadow:0 24px 70px -24px rgba(0,0,0,.65); overflow:hidden; font-size:13px}
+  .titlebar{display:flex; align-items:center; gap:14px; padding:9px 14px; background:#0F1117; border-bottom:1px solid var(--line-soft)}
+  .titlebar .logo{width:18px; height:18px; border-radius:5px; background:linear-gradient(135deg,var(--brand),#5CA8F5); flex:none}
+  .titlebar .menu{display:flex; gap:15px; color:var(--muted); font-size:12.5px}
+  .titlebar .appname{margin-left:auto; margin-right:auto; color:var(--faint); font-size:12px; position:absolute; left:50%; transform:translateX(-50%)}
+  .titlebar{position:relative}
+  .winbtns{margin-left:auto; display:flex; gap:8px}
+  .winbtns span{width:11px; height:11px; border-radius:50%; background:#2C3140; display:block}
+
+  .chrome{display:grid; grid-template-columns:52px 218px 1fr; min-height:760px}
+  @media (max-width:1100px){ .chrome{grid-template-columns:52px 1fr} .sidebar{display:none} }
+
+  .rail{background:#0F1117; border-right:1px solid var(--line-soft); display:flex; flex-direction:column; align-items:center; padding:12px 0; gap:6px}
+  .rail button{width:36px; height:36px; border-radius:9px; border:0; background:none; color:var(--faint); cursor:pointer; display:grid; place-items:center}
+  .rail button:hover{background:var(--raised); color:var(--muted)}
+  .rail button.on{background:rgba(139,123,245,.16); color:var(--brand)}
+  .rail .gap{flex:1}
+  .rail svg{width:17px; height:17px}
+  svg{fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round}
+
+  .sidebar{background:var(--panel); border-right:1px solid var(--line-soft); padding:14px 10px; display:flex; flex-direction:column; gap:2px; overflow-y:auto}
+  .sidebar .proj{display:flex; align-items:center; gap:9px; padding:9px 10px; margin-bottom:10px; background:var(--raised); border:1px solid var(--line); border-radius:9px}
+  .sidebar .proj b{font-size:12.5px; font-weight:650}
+  .sidebar .proj small{display:block; color:var(--faint); font-size:11px; font-weight:400}
+  .sidebar .proj .dot{width:24px;height:24px;border-radius:7px;background:linear-gradient(135deg,#E0A23C,#E86464);flex:none}
+  .navlab{font-size:10.5px; font-weight:700; letter-spacing:.09em; text-transform:uppercase; color:var(--faint); padding:12px 10px 5px}
+  .nav{display:flex; align-items:center; gap:9px; padding:7px 10px; border-radius:7px; color:var(--muted); cursor:pointer; border:0; background:none; font:inherit; width:100%; text-align:left}
+  .nav:hover{background:var(--raised); color:var(--ink)}
+  .nav.on{background:rgba(139,123,245,.13); color:var(--ink)}
+  .nav .sq{width:9px; height:9px; border-radius:3px; flex:none}
+  .nav .n{margin-left:auto; font-size:11px; color:var(--faint); font-family:var(--mono)}
+
+  .work{display:flex; min-width:0; background:var(--ground)}
+  .screen{display:none; flex:1; min-width:0}
+  .screen.on{display:flex}
+  .main{flex:1; min-width:0; display:flex; flex-direction:column}
+  .inspector{width:302px; flex:none; background:var(--panel); border-left:1px solid var(--line-soft); overflow-y:auto}
+  @media (max-width:960px){ .inspector{display:none} }
+
+  .mhead{display:flex; align-items:center; gap:12px; padding:16px 20px 12px; flex-wrap:wrap}
+  .mhead h2{font-size:18px; font-weight:650; letter-spacing:-.01em}
+  .mhead .crumb{color:var(--faint); font-size:12px}
+  .mhead .crumb b{color:var(--muted); font-weight:500}
+  .mhead .right{margin-left:auto; display:flex; gap:8px; align-items:center}
+  .btn{font:inherit; font-size:12.5px; font-weight:600; border-radius:8px; padding:7px 13px; cursor:pointer; border:1px solid var(--line); background:var(--raised); color:var(--ink)}
+  .btn.primary{background:var(--brand); border-color:var(--brand); color:#fff}
+  .btn.ghost{background:none}
+
+  .toolrow{display:flex; align-items:center; gap:8px; padding:0 20px 12px; flex-wrap:wrap}
+  .search{display:flex; align-items:center; gap:8px; background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:7px 11px; color:var(--faint); width:230px; font-size:12.5px}
+  .chip{font-size:12px; font-weight:600; padding:5px 11px; border-radius:99px; border:1px solid var(--line); color:var(--muted); background:none; cursor:pointer; font-family:inherit}
+  .chip.on{border-color:transparent; color:#fff}
+  .viewtog{margin-left:auto; display:flex; border:1px solid var(--line); border-radius:8px; overflow:hidden}
+  .viewtog span{padding:6px 11px; font-size:11.5px; font-weight:600; color:var(--faint); border-left:1px solid var(--line)}
+  .viewtog span:first-child{border-left:0}
+  .viewtog span.on{background:var(--raised); color:var(--ink)}
+
+  .split{flex:1; display:grid; grid-template-columns:308px 1fr; gap:0; min-height:0; border-top:1px solid var(--line-soft)}
+  @media (max-width:1250px){ .split{grid-template-columns:1fr} .gallery{display:none!important} }
+
+  /* gallery */
+  .gallery{border-right:1px solid var(--line-soft); padding:14px; overflow-y:auto; display:grid; grid-template-columns:1fr 1fr; gap:11px; align-content:start; background:#161923}
+  .card{border-radius:11px; overflow:hidden; border:1px solid var(--line); background:var(--panel); cursor:pointer; position:relative}
+  .card.sel{border-color:var(--c-item); box-shadow:0 0 0 1px var(--c-item)}
+  .thumb{aspect-ratio:1/.82; display:grid; place-items:center; position:relative}
+  .thumb svg{width:44%; height:44%; opacity:.9}
+  .card figcaption{padding:8px 10px 9px}
+  .card figcaption b{display:block; font-size:12px; font-weight:650}
+  .tag{display:inline-block; margin-top:5px; font-size:10px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; padding:2.5px 7px; border-radius:5px}
+  .card .st{position:absolute; top:8px; right:8px; width:9px; height:9px; border-radius:50%; box-shadow:0 0 0 3px rgba(0,0,0,.35)}
+
+  /* data grid */
+  .gridwrap{overflow:auto; min-width:0; background:var(--ground)}
+  table{border-collapse:collapse; width:100%; min-width:920px; font-size:12.5px}
+  thead th{position:sticky; top:0; background:#1B1E28; color:var(--muted); font-weight:600; text-align:left; padding:9px 14px; border-bottom:1px solid var(--line); font-size:11.5px; letter-spacing:.02em; white-space:nowrap; z-index:2}
+  thead th .fico{opacity:.5; margin-left:5px; font-size:10px}
+  tbody td{padding:9px 14px; border-bottom:1px solid var(--line-soft); color:var(--muted); vertical-align:top; white-space:nowrap}
+  tbody td:first-child{color:var(--ink); font-weight:600}
+  tbody tr:hover td{background:rgba(139,123,245,.05)}
+  tbody tr.sel td{background:rgba(224,162,60,.09); box-shadow:inset 3px 0 0 var(--c-item)}
+  td.mono, .mono{font-family:var(--mono); font-size:11.5px; font-variant-numeric:tabular-nums}
+  .pill{display:inline-flex; align-items:center; gap:6px; font-size:11px; font-weight:650; padding:3px 9px; border-radius:99px}
+  .pill i{width:6px; height:6px; border-radius:50%; font-style:normal}
+  .p-ok{background:rgba(67,191,135,.13); color:#6FD9A7}.p-ok i{background:var(--ok)}
+  .p-warn{background:rgba(224,162,60,.13); color:#EDBB63}.p-warn i{background:var(--warn)}
+  .p-bad{background:rgba(232,100,100,.13); color:#F08C8C}.p-bad i{background:var(--bad)}
+  .link{color:var(--c-sensor); text-decoration:none; border-bottom:1px dotted rgba(62,198,214,.5)}
+  .link.m{color:var(--c-mechanic); border-color:rgba(168,123,240,.5)}
+  .link.l{color:var(--c-location); border-color:rgba(67,191,135,.5)}
+  .statusbar{border-top:1px solid var(--line-soft); padding:7px 20px; display:flex; gap:18px; color:var(--faint); font-size:11.5px; background:var(--panel)}
+  .statusbar b{color:var(--muted); font-weight:600}
+
+  /* inspector */
+  .ihead{padding:16px 16px 0}
+  .ihead .iphoto{border-radius:10px; aspect-ratio:16/9; display:grid; place-items:center; border:1px solid var(--line); margin-bottom:12px}
+  .ihead .iphoto svg{width:52px; height:52px; opacity:.9}
+  .ihead h3{font-size:15px; font-weight:650}
+  .ihead .sub{color:var(--faint); font-size:11.5px; margin-top:3px}
+  .isect{padding:13px 16px 0}
+  .isect .lab{font-size:10.5px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--faint); margin-bottom:7px}
+  .field{background:var(--raised); border:1px solid var(--line); border-radius:8px; padding:8px 11px; font-size:12.5px; color:var(--ink); line-height:1.45}
+  .field.sm{font-size:12px; color:var(--muted)}
+  .frow{display:grid; grid-template-columns:1fr 1fr; gap:9px}
+  .chips{display:flex; flex-wrap:wrap; gap:6px}
+  .lchip{display:inline-flex; align-items:center; gap:6px; font-size:11.5px; font-weight:600; padding:4px 10px; border-radius:7px; border:1px solid var(--line); color:var(--muted)}
+  .lchip .sq{width:8px; height:8px; border-radius:3px}
+  .flow{display:flex; align-items:center; gap:0; margin-top:2px}
+  .flow span{flex:1; text-align:center; font-size:10px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:var(--faint); padding:6px 2px; background:var(--raised); border:1px solid var(--line); border-left:0}
+  .flow span:first-child{border-left:1px solid var(--line); border-radius:7px 0 0 7px}
+  .flow span:last-child{border-radius:0 7px 7px 0}
+  .flow span.done{color:#6FD9A7; background:rgba(67,191,135,.10)}
+  .flow span.now{color:#EDBB63; background:rgba(224,162,60,.13)}
+  .ifoot{padding:16px; display:flex; gap:8px}
+
+  /* ---------------- flow canvas ---------------- */
+  .canvas{flex:1; position:relative; overflow:hidden; border-top:1px solid var(--line-soft);
+          background:radial-gradient(circle at 1px 1px, #262B3A 1px, transparent 1.5px) 0 0/22px 22px, #14161F}
+  .edges{position:absolute; inset:0; width:100%; height:100%}
+  .node{position:absolute; width:222px; border-radius:12px; background:rgba(26,29,38,.92); border:1px solid var(--line); box-shadow:0 10px 30px -12px rgba(0,0,0,.6)}
+  .node .nh{display:flex; align-items:center; gap:9px; padding:10px 12px; border-bottom:1px solid var(--line-soft)}
+  .node .nh .ic{width:26px; height:26px; border-radius:7px; display:grid; place-items:center; flex:none}
+  .node .nh .ic svg{width:14px; height:14px; color:#fff}
+  .node .nh small{display:block; font-size:10px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; opacity:.75}
+  .node .nh b{font-size:12.5px; font-weight:650}
+  .node .nb{padding:9px 12px 11px; color:var(--muted); font-size:11.5px; line-height:1.5}
+  .node .nb ul{list-style:none; display:flex; flex-direction:column; gap:5px; margin-top:2px}
+  .node .nb li{display:flex; justify-content:space-between; gap:8px; background:var(--raised); border:1px solid var(--line-soft); border-radius:6px; padding:5px 9px; font-size:11px; color:var(--muted)}
+  .node .nb li span:last-child{color:var(--faint)}
+  .node.sel{box-shadow:0 0 0 2px var(--c-item), 0 10px 30px -12px rgba(0,0,0,.6)}
+  .n-blue{border-top:3px solid var(--c-narrative)} .n-blue .ic{background:var(--c-narrative)} .n-blue small{color:var(--c-narrative)}
+  .n-green{border-top:3px solid var(--c-location)} .n-green .ic{background:var(--c-location)} .n-green small{color:var(--c-location)}
+  .n-red{border-top:3px solid var(--c-enemy)} .n-red .ic{background:var(--c-enemy)} .n-red small{color:var(--c-enemy)}
+  .n-amber{border-top:3px solid var(--c-item)} .n-amber .ic{background:var(--c-item)} .n-amber small{color:var(--c-item)}
+  .n-purple{border-top:3px solid var(--c-mechanic)} .n-purple .ic{background:var(--c-mechanic)} .n-purple small{color:var(--c-mechanic)}
+  .n-cyan{border-top:3px solid var(--c-sensor)} .n-cyan .ic{background:var(--c-sensor)} .n-cyan small{color:var(--c-sensor)}
+  .elab{position:absolute; font-size:10.5px; font-weight:700; padding:4px 10px; border-radius:99px; background:#181B25; border:1px solid var(--line); color:var(--muted); white-space:nowrap}
+  .zoomer{position:absolute; right:16px; bottom:16px; display:flex; gap:1px; border:1px solid var(--line); border-radius:8px; overflow:hidden}
+  .zoomer span{background:var(--panel); color:var(--muted); padding:6px 11px; font-size:13px}
+  .minimap{position:absolute; left:16px; bottom:16px; width:150px; height:92px; border-radius:8px; background:rgba(15,17,23,.85); border:1px solid var(--line)}
+  .minimap i{position:absolute; border-radius:2px; opacity:.85}
+  .palette{width:212px; flex:none; background:var(--panel); border-right:1px solid var(--line-soft); border-top:1px solid var(--line-soft); padding:13px; overflow-y:auto}
+  .palette .lab{font-size:10.5px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--faint); margin:4px 0 8px}
+  .pnode{display:flex; align-items:center; gap:9px; padding:8px 10px; border:1px dashed var(--line); border-radius:8px; margin-bottom:7px; color:var(--muted); font-size:12px; font-weight:600; cursor:grab}
+  .pnode .sq{width:10px; height:10px; border-radius:3px}
+  .otree{margin-top:14px; font-size:12px; color:var(--muted)}
+  .otree div{padding:5px 8px; border-radius:6px; display:flex; gap:8px; align-items:center}
+  .otree div.on{background:var(--raised); color:var(--ink)}
+  .otree .sq{width:8px; height:8px; border-radius:3px; flex:none}
+  .validation{position:absolute; top:14px; right:16px; background:rgba(224,162,60,.1); border:1px solid rgba(224,162,60,.4); color:#EDBB63; border-radius:9px; padding:8px 13px; font-size:11.5px; font-weight:600; display:flex; gap:8px; align-items:center}
+
+  /* ---------------- live ops ---------------- */
+  .kpis{display:grid; grid-template-columns:repeat(5,1fr); gap:10px; padding:0 20px 14px}
+  @media (max-width:1250px){.kpis{grid-template-columns:repeat(3,1fr)}}
+  .kpi{background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:11px 14px}
+  .kpi small{display:block; font-size:10.5px; font-weight:700; letter-spacing:.07em; text-transform:uppercase; color:var(--faint); margin-bottom:5px}
+  .kpi b{font-size:19px; font-weight:650; font-family:var(--mono); font-variant-numeric:tabular-nums}
+  .kpi .trend{font-size:11px; margin-left:7px; font-weight:600}
+  .ops{flex:1; display:grid; grid-template-columns:1fr 336px; border-top:1px solid var(--line-soft); min-height:0}
+  @media (max-width:1100px){.ops{grid-template-columns:1fr}.feed{display:none}}
+  .map{position:relative; background:#12141D; overflow:hidden}
+  .map svg.site{position:absolute; inset:0; width:100%; height:100%}
+  .maplegend{position:absolute; left:14px; top:14px; background:rgba(15,17,23,.85); border:1px solid var(--line); border-radius:9px; padding:10px 13px; font-size:11px; color:var(--muted); display:flex; flex-direction:column; gap:6px}
+  .maplegend span{display:flex; align-items:center; gap:8px}
+  .maplegend i{width:9px; height:9px; border-radius:50%}
+  .feed{background:var(--panel); border-left:1px solid var(--line-soft); display:flex; flex-direction:column; min-height:0}
+  .feed .fh{padding:13px 16px; border-bottom:1px solid var(--line-soft); display:flex; align-items:center; gap:8px}
+  .feed .fh b{font-size:13px; font-weight:650}
+  .live{margin-left:auto; display:inline-flex; align-items:center; gap:6px; font-size:10.5px; font-weight:700; letter-spacing:.06em; color:#F08C8C}
+  .live i{width:7px; height:7px; border-radius:50%; background:var(--bad); animation:blink 1.6s infinite}
+  @keyframes blink{50%{opacity:.25}}
+  @media (prefers-reduced-motion:reduce){ .live i, .ping{animation:none!important} }
+  .events{overflow-y:auto; padding:8px 0; flex:1}
+  .ev{display:grid; grid-template-columns:52px 10px 1fr; gap:0 10px; padding:8px 16px}
+  .ev time{font-family:var(--mono); font-size:11px; color:var(--faint); padding-top:2px}
+  .ev .dot{width:9px; height:9px; border-radius:50%; margin-top:4px; justify-self:center}
+  .ev p{font-size:12px; color:var(--muted); line-height:1.45}
+  .ev p b{color:var(--ink); font-weight:600}
+  .ev.alert{background:rgba(232,100,100,.07); box-shadow:inset 3px 0 0 var(--bad)}
+  .teamstrip{display:grid; grid-template-columns:repeat(3,1fr); gap:10px; padding:14px 20px; border-top:1px solid var(--line-soft); background:var(--ground)}
+  @media (max-width:1100px){.teamstrip{grid-template-columns:1fr}}
+  .tcard{background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px 14px}
+  .tcard .tr1{display:flex; align-items:center; gap:9px; margin-bottom:9px}
+  .tcard .tsq{width:11px; height:11px; border-radius:4px}
+  .tcard b{font-size:13px; font-weight:650}
+  .tcard .obj{font-size:11.5px; color:var(--muted); margin-bottom:8px}
+  .bar{height:5px; border-radius:99px; background:var(--raised); overflow:hidden}
+  .bar i{display:block; height:100%; border-radius:99px}
+  .tmeta{display:flex; justify-content:space-between; margin-top:7px; font-size:11px; color:var(--faint); font-family:var(--mono)}
+
+  /* ---------------- teams screen ---------------- */
+  .teamgrid{flex:1; border-top:1px solid var(--line-soft); padding:16px 20px; display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:14px; align-content:start; overflow-y:auto}
+  .team{background:var(--panel); border:1px solid var(--line); border-radius:12px; overflow:hidden}
+  .team.sel{border-color:var(--brand); box-shadow:0 0 0 1px var(--brand)}
+  .team .th{padding:13px 15px; display:flex; align-items:center; gap:10px; border-bottom:1px solid var(--line-soft)}
+  .team .th .emb{width:34px; height:34px; border-radius:9px; display:grid; place-items:center; font-weight:800; font-size:14px; color:#fff}
+  .team .th b{font-size:14px; font-weight:650; display:block}
+  .team .th small{color:var(--faint); font-size:11px}
+  .team .th .pill{margin-left:auto}
+  .roster{padding:10px 15px; display:flex; flex-direction:column; gap:7px}
+  .pl{display:flex; align-items:center; gap:9px}
+  .av{width:24px; height:24px; border-radius:50%; display:grid; place-items:center; font-size:10px; font-weight:800; color:#fff; flex:none}
+  .pl b{font-size:12px; font-weight:600}
+  .pl .role{font-size:10.5px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:var(--faint); margin-left:auto}
+  .pl .flag{font-size:10px; padding:2px 6px; border-radius:5px; font-weight:700}
+  .flag.med{background:rgba(232,100,100,.14); color:#F08C8C}
+  .flag.new{background:rgba(92,168,245,.14); color:#8CC1F5}
+  .team .tf{padding:10px 15px 13px; border-top:1px solid var(--line-soft); display:flex; gap:14px; font-size:11px; color:var(--faint); font-family:var(--mono)}
+  .team .tf b{color:var(--muted)}
+  .kitline{display:flex; justify-content:space-between; align-items:center; font-size:12px; color:var(--muted); padding:4px 0}
+  .kitline .mono{color:var(--faint)}
+  .check{width:15px; height:15px; border-radius:4px; border:1px solid var(--line); display:inline-grid; place-items:center; margin-right:8px}
+  .check.on{background:var(--ok); border-color:var(--ok)}
+  .check.on::after{content:""; width:8px; height:4px; border-left:2px solid #0F1117; border-bottom:2px solid #0F1117; transform:rotate(-45deg) translate(0,-1px)}
+
+  .note{color:var(--page-muted); font-size:12.5px; text-align:center}
+</style>
+
+<div class="page">
+  <header class="intro">
+    <div>
+      <h1><span class="mark"></span>LARP Craft — UX concepts</h1>
+      <p>Four screens of the live-action game builder &amp; management tool. One entity color system runs through everything: <b style="color:var(--c-narrative)">narrative</b>, <b style="color:var(--c-location)">locations</b>, <b style="color:var(--c-enemy)">enemies</b>, <b style="color:var(--c-item)">items</b>, <b style="color:var(--c-mechanic)">mechanics</b>, <b style="color:var(--c-sensor)">sensors</b>.</p>
+    </div>
+    <nav class="switch" aria-label="Screens">
+      <button class="on" data-go="items"><span class="k" style="background:var(--c-item)"></span>Item Database</button>
+      <button data-go="flow"><span class="k" style="background:var(--c-mechanic)"></span>Scenario Flow</button>
+      <button data-go="ops"><span class="k" style="background:var(--c-enemy)"></span>Live Ops</button>
+      <button data-go="teams"><span class="k" style="background:var(--c-narrative)"></span>Players &amp; Teams</button>
+    </nav>
+  </header>
+
+  <div class="frame">
+    <div class="titlebar">
+      <span class="logo"></span>
+      <nav class="menu"><span>File</span><span>Edit</span><span>View</span><span>Project</span><span>Run Game</span><span>Help</span></nav>
+      <span class="appname">LARP Craft — Operation Chimera</span>
+      <div class="winbtns"><span></span><span></span><span></span></div>
+    </div>
+
+    <div class="chrome">
+      <!-- icon rail -->
+      <div class="rail">
+        <button title="Dashboard"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg></button>
+        <button class="on" title="Build"><svg viewBox="0 0 24 24"><path d="M4 7l8-4 8 4-8 4-8-4z"/><path d="M4 12l8 4 8-4"/><path d="M4 17l8 4 8-4"/></svg></button>
+        <button title="Run game"><svg viewBox="0 0 24 24"><path d="M7 4l13 8-13 8z"/></svg></button>
+        <button title="Library"><svg viewBox="0 0 24 24"><path d="M4 19V5a2 2 0 012-2h13v18H6a2 2 0 01-2-2z"/><path d="M19 17H6a2 2 0 000 4"/></svg></button>
+        <div class="gap"></div>
+        <button title="Search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/></svg></button>
+        <button title="Settings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9L17 7M7 17l-2.1 2.1"/></svg></button>
+      </div>
+
+      <!-- sidebar -->
+      <div class="sidebar">
+        <div class="proj"><span class="dot"></span><div><b>Operation Chimera</b><small>Sat 12 Jul · Sector 7 site</small></div></div>
+        <div class="navlab">Build</div>
+        <button class="nav" data-nav="flow"><span class="sq" style="background:var(--c-narrative)"></span>Narrative &amp; Quests<span class="n">14</span></button>
+        <button class="nav"><span class="sq" style="background:var(--c-location)"></span>Locations<span class="n">9</span></button>
+        <button class="nav"><span class="sq" style="background:var(--c-enemy)"></span>Enemies &amp; NPCs<span class="n">12</span></button>
+        <button class="nav" data-nav="items"><span class="sq" style="background:var(--c-item)"></span>Items &amp; Gadgets<span class="n">38</span></button>
+        <button class="nav"><span class="sq" style="background:var(--c-mechanic)"></span>Rules &amp; Mechanics<span class="n">21</span></button>
+        <button class="nav"><span class="sq" style="background:var(--c-sensor)"></span>Sensors &amp; Hardware<span class="n">16</span></button>
+        <div class="navlab">Manage</div>
+        <button class="nav" data-nav="teams"><span class="sq" style="background:var(--c-narrative)"></span>Players &amp; Teams<span class="n">31</span></button>
+        <button class="nav" data-nav="ops"><span class="sq" style="background:var(--c-enemy)"></span>Live Ops<span class="n">●</span></button>
+        <button class="nav"><span class="sq" style="background:var(--faint)"></span>Logistics &amp; Pack lists</button>
+        <div class="navlab">Library</div>
+        <button class="nav"><span class="sq" style="background:var(--c-mechanic)"></span>Mechanics catalogue</button>
+        <button class="nav"><span class="sq" style="background:var(--c-narrative)"></span>Story structures</button>
+        <button class="nav"><span class="sq" style="background:var(--c-item)"></span>Prop archive</button>
+      </div>
+
+      <!-- workspace -->
+      <div class="work">
+
+        <!-- ============ SCREEN 1 · ITEM DATABASE ============ -->
+        <section class="screen on" id="s-items">
+          <div class="main">
+            <div class="mhead">
+              <div>
+                <div class="crumb">Operation Chimera / <b>Items &amp; Gadgets</b></div>
+                <h2>Item Database</h2>
+              </div>
+              <div class="right">
+                <button class="btn ghost">Import CSV</button>
+                <button class="btn ghost">Print prop labels</button>
+                <button class="btn primary">+ New item</button>
+              </div>
+            </div>
+            <div class="toolrow">
+              <span class="search"><svg viewBox="0 0 24 24" style="width:13px;height:13px"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/></svg>Search items, props, tags…</span>
+              <button class="chip on" style="background:var(--c-item)">All · 38</button>
+              <button class="chip">Quest artifacts</button>
+              <button class="chip">Gadgets</button>
+              <button class="chip">Sensors</button>
+              <button class="chip">Consumables</button>
+              <div class="viewtog"><span>Gallery</span><span class="on">Split</span><span>Grid</span></div>
+            </div>
+
+            <div class="split">
+              <div class="gallery">
+                <figure class="card">
+                  <div class="thumb" style="background:linear-gradient(140deg,#2A2416,#1B1A14)"><svg viewBox="0 0 24 24" style="color:#D9A441"><circle cx="8" cy="8" r="4.5"/><path d="M11.5 11.5L20 20M16.5 16.5l2-2M14 19l1.6-1.6"/></svg><span class="st" style="background:var(--ok)"></span></div>
+                  <figcaption><b>Cipher-Key</b><span class="tag" style="background:rgba(224,162,60,.14);color:#EDBB63">Artifact</span></figcaption>
+                </figure>
+                <figure class="card">
+                  <div class="thumb" style="background:linear-gradient(140deg,#12281C,#101A15)"><svg viewBox="0 0 24 24" style="color:#57E39A"><path d="M10 3h4M11 3v5l-4.5 9A3 3 0 009.2 21h5.6a3 3 0 002.7-4l-4.5-9V3"/><path d="M8.2 15h7.6"/></svg><span class="st" style="background:var(--ok)"></span></div>
+                  <figcaption><b>Serum Vial</b><span class="tag" style="background:rgba(62,198,214,.13);color:#6FD4DF">Gadget</span></figcaption>
+                </figure>
+                <figure class="card sel">
+                  <div class="thumb" style="background:linear-gradient(140deg,#23281E,#171A14)"><svg viewBox="0 0 24 24" style="color:#A9B86A"><rect x="4" y="3" width="16" height="18" rx="2.5"/><rect x="7" y="6" width="10" height="6" rx="1"/><path d="M7.5 15.5h1M11.5 15.5h1M15.5 15.5h1M7.5 18.5h1M11.5 18.5h1M15.5 18.5h1"/></svg><span class="st" style="background:var(--warn)"></span></div>
+                  <figcaption><b>Encrypted Dataslate</b><span class="tag" style="background:rgba(224,162,60,.14);color:#EDBB63">Artifact</span></figcaption>
+                </figure>
+                <figure class="card">
+                  <div class="thumb" style="background:linear-gradient(140deg,#2A2117,#191510)"><svg viewBox="0 0 24 24" style="color:#D9B98A"><rect x="3" y="6" width="18" height="12" rx="2"/><rect x="6" y="9" width="4" height="3.5" rx=".8"/><path d="M13 10h5M13 13h5"/></svg><span class="st" style="background:var(--ok)"></span></div>
+                  <figcaption><b>Old-school Key Card</b><span class="tag" style="background:rgba(224,162,60,.14);color:#EDBB63">Artifact</span></figcaption>
+                </figure>
+                <figure class="card">
+                  <div class="thumb" style="background:linear-gradient(140deg,#1C222E,#131722)"><svg viewBox="0 0 24 24" style="color:#8FB4E8"><rect x="6" y="4" width="12" height="16" rx="2.5"/><path d="M9 8h6M9 11h6M10 17h4"/><path d="M18 6l3-2M18 9l2-1"/></svg><span class="st" style="background:var(--bad)"></span></div>
+                  <figcaption><b>Comms Unit</b><span class="tag" style="background:rgba(62,198,214,.13);color:#6FD4DF">Gadget</span></figcaption>
+                </figure>
+                <figure class="card">
+                  <div class="thumb" style="background:linear-gradient(140deg,#241A2E,#171220)"><svg viewBox="0 0 24 24" style="color:#C09BF0"><circle cx="12" cy="14" r="4"/><path d="M12 10V4M8 6l4-2 4 2"/><path d="M5 20a9 9 0 0014 0"/></svg><span class="st" style="background:var(--warn)"></span></div>
+                  <figcaption><b>Signal Beacon</b><span class="tag" style="background:rgba(62,198,214,.13);color:#6FD4DF">Gadget</span></figcaption>
+                </figure>
+              </div>
+
+              <div class="gridwrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Item name <span class="fico">▲</span></th><th>Type <span class="fico">⌄</span></th><th>Status</th>
+                      <th>Real-world prop</th><th>Location <span class="fico">⌄</span></th><th>Mechanic linked</th><th>Sensors</th><th>Tag ID</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>Cipher-Key</td><td>Quest artifact</td><td><span class="pill p-ok"><i></i>Ready</span></td>
+                      <td>Heavy brass key, engraved</td><td><a class="link l" href="#g">Sector 7 · Locker 12</a></td>
+                      <td><a class="link m" href="#g">Lockpicking minigame</a></td><td><a class="link" href="#g">RFID-07</a></td><td class="mono">CHM-A-004</td>
+                    </tr>
+                    <tr class="sel">
+                      <td>Encrypted Dataslate</td><td>Quest artifact</td><td><span class="pill p-warn"><i></i>In build</span></td>
+                      <td>Plastic case, low-res screen</td><td><a class="link l" href="#g">Sector 7 · Locker 12</a></td>
+                      <td><a class="link m" href="#g">Decryption puzzle</a></td><td><a class="link" href="#g">NFC-03</a>, <a class="link" href="#g">BTN-11</a></td><td class="mono">CHM-A-007</td>
+                    </tr>
+                    <tr>
+                      <td>Serum Vial</td><td>Gadget</td><td><span class="pill p-ok"><i></i>Ready</span></td>
+                      <td>Glow vial, UV-reactive fluid</td><td><a class="link l" href="#g">Med Bay prop table</a></td>
+                      <td><a class="link m" href="#g">Antidote crafting</a></td><td>—</td><td class="mono">CHM-G-012</td>
+                    </tr>
+                    <tr>
+                      <td>Old-school Key Card</td><td>Quest artifact</td><td><span class="pill p-ok"><i></i>Ready</span></td>
+                      <td>Embossed magstripe card</td><td><a class="link l" href="#g">NPC: Quartermaster</a></td>
+                      <td><a class="link m" href="#g">Access control</a></td><td><a class="link" href="#g">RFID-02</a></td><td class="mono">CHM-A-002</td>
+                    </tr>
+                    <tr>
+                      <td>Comms Unit</td><td>Gadget</td><td><span class="pill p-bad"><i></i>Missing</span></td>
+                      <td>Repainted walkie, weathered</td><td><a class="link l" href="#g">Team kit — Raven</a></td>
+                      <td><a class="link m" href="#g">Radio protocol</a></td><td>—</td><td class="mono">CHM-G-005</td>
+                    </tr>
+                    <tr>
+                      <td>Signal Beacon</td><td>Gadget</td><td><span class="pill p-warn"><i></i>Needs test</span></td>
+                      <td>3D-printed shell, ESP32 + LED</td><td><a class="link l" href="#g">Rooftop, Sector 8</a></td>
+                      <td><a class="link m" href="#g">Extraction call-in</a></td><td><a class="link" href="#g">RF-01</a></td><td class="mono">CHM-G-018</td>
+                    </tr>
+                    <tr>
+                      <td>UV Torch</td><td>Gadget</td><td><span class="pill p-ok"><i></i>Ready</span></td>
+                      <td>Consumer UV flashlight ×4</td><td><a class="link l" href="#g">Team kits — all</a></td>
+                      <td><a class="link m" href="#g">Hidden-ink clues</a></td><td>—</td><td class="mono">CHM-G-001</td>
+                    </tr>
+                    <tr>
+                      <td>Medkit Prop</td><td>Consumable</td><td><span class="pill p-ok"><i></i>Ready</span></td>
+                      <td>Surplus pouch, bandage cards</td><td><a class="link l" href="#g">Med Bay prop table</a></td>
+                      <td><a class="link m" href="#g">Downed-player revive</a></td><td>—</td><td class="mono">CHM-C-009</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div class="statusbar"><span><b>38</b> items</span><span><b>3</b> filtered out</span><span>Row 2 of 8 selected</span><span style="margin-left:auto">Last sync <b>2 min ago</b></span></div>
+          </div>
+
+          <aside class="inspector">
+            <div class="ihead">
+              <div class="iphoto" style="background:linear-gradient(140deg,#23281E,#171A14)"><svg viewBox="0 0 24 24" style="color:#A9B86A"><rect x="4" y="3" width="16" height="18" rx="2.5"/><rect x="7" y="6" width="10" height="6" rx="1"/><path d="M7.5 15.5h1M11.5 15.5h1M15.5 15.5h1M7.5 18.5h1M11.5 18.5h1M15.5 18.5h1"/></svg></div>
+              <h3>Encrypted Dataslate</h3>
+              <div class="sub mono">CHM-A-007 · Quest artifact</div>
+            </div>
+            <div class="isect"><div class="lab">Build status</div>
+              <div class="flow"><span class="done">Concept</span><span class="done">Design</span><span class="now">In build</span><span>Tested</span><span>Packed</span></div>
+            </div>
+            <div class="isect"><div class="lab">Description · shown to players</div>
+              <div class="field">A weathered military dataslate holding corrupted operational data. Needs to be decoded before the flight path can be read.</div>
+            </div>
+            <div class="isect"><div class="lab">Real-world prop · crew only</div>
+              <div class="field sm">Custom plastic + metal case, low-res OLED, four physical buttons. Battery: 2× AA, swap before game.</div>
+            </div>
+            <div class="isect"><div class="lab">Placement</div>
+              <div class="chips"><span class="lchip"><span class="sq" style="background:var(--c-location)"></span>Sector 7 · Locker 12</span></div>
+            </div>
+            <div class="isect"><div class="lab">Linked mechanics</div>
+              <div class="chips">
+                <span class="lchip"><span class="sq" style="background:var(--c-mechanic)"></span>Decryption puzzle</span>
+                <span class="lchip"><span class="sq" style="background:var(--c-mechanic)"></span>Comms link</span>
+              </div>
+            </div>
+            <div class="isect"><div class="lab">Sensors &amp; hardware</div>
+              <div class="chips">
+                <span class="lchip"><span class="sq" style="background:var(--c-sensor)"></span>NFC-03 reader</span>
+                <span class="lchip"><span class="sq" style="background:var(--c-sensor)"></span>BTN-11 button box</span>
+              </div>
+            </div>
+            <div class="isect"><div class="lab">Appears in</div>
+              <div class="chips">
+                <span class="lchip"><span class="sq" style="background:var(--c-narrative)"></span>Main questline · step 4</span>
+                <span class="lchip"><span class="sq" style="background:var(--c-enemy)"></span>Security patrol trigger</span>
+              </div>
+            </div>
+            <div class="isect"><div class="lab">Lore notes</div>
+              <div class="field sm">Recovered from a crash site; rumored to hold the Operation Chimera flight path.</div>
+            </div>
+            <div class="ifoot"><button class="btn" style="flex:1">Open full record</button><button class="btn ghost">⧉</button></div>
+          </aside>
+        </section>
+
+        <!-- ============ SCREEN 2 · SCENARIO FLOW ============ -->
+        <section class="screen" id="s-flow">
+          <div class="palette">
+            <div class="lab">Add node</div>
+            <div class="pnode"><span class="sq" style="background:var(--c-narrative)"></span>Story beat</div>
+            <div class="pnode"><span class="sq" style="background:var(--c-location)"></span>Location</div>
+            <div class="pnode"><span class="sq" style="background:var(--c-item)"></span>Objective / item</div>
+            <div class="pnode"><span class="sq" style="background:var(--c-enemy)"></span>Enemy encounter</div>
+            <div class="pnode"><span class="sq" style="background:var(--c-mechanic)"></span>Mechanic</div>
+            <div class="pnode"><span class="sq" style="background:var(--c-sensor)"></span>Sensor trigger</div>
+            <div class="lab" style="margin-top:16px">Outline · Act 1</div>
+            <div class="otree">
+              <div><span class="sq" style="background:var(--c-narrative)"></span>Briefing</div>
+              <div><span class="sq" style="background:var(--c-location)"></span>Sector 7 Warehouse</div>
+              <div class="on"><span class="sq" style="background:var(--c-item)"></span>Retrieve Cipher-Key</div>
+              <div><span class="sq" style="background:var(--c-mechanic)"></span>RFID lock puzzle</div>
+              <div><span class="sq" style="background:var(--c-enemy)"></span>Security patrols</div>
+              <div><span class="sq" style="background:var(--c-narrative)"></span>Unlock Sector 8</div>
+            </div>
+          </div>
+
+          <div class="main">
+            <div class="mhead">
+              <div>
+                <div class="crumb">Operation Chimera / Narrative &amp; Quests / <b>Main questline</b></div>
+                <h2>Scenario Flow — Act 1</h2>
+              </div>
+              <div class="right">
+                <button class="btn ghost">Validate</button>
+                <button class="btn ghost">Dry-run</button>
+                <button class="btn primary">▸ Simulate</button>
+              </div>
+            </div>
+
+            <div class="canvas">
+              <svg class="edges" aria-hidden="true">
+                <path d="M 262 150 C 330 150, 350 170, 415 190" stroke="#5CA8F5" stroke-width="2" opacity=".85"/>
+                <path d="M 262 190 C 320 260, 330 420, 415 452" stroke="#5CA8F5" stroke-width="2" opacity=".55"/>
+                <path d="M 637 260 C 690 300, 690 380, 640 420" stroke="#43BF87" stroke-width="2" opacity=".85"/>
+                <path d="M 637 200 C 730 190, 760 170, 830 160" stroke="#E86464" stroke-width="2" opacity=".85"/>
+                <path d="M 637 480 C 720 500, 750 500, 830 470" stroke="#A87BF0" stroke-width="2" opacity=".85"/>
+                <path d="M 940 300 C 940 330, 940 350, 940 385" stroke="#E0A23C" stroke-width="2" stroke-dasharray="6 5" opacity=".9"/>
+              </svg>
+
+              <div class="node n-blue" style="left:40px; top:96px">
+                <div class="nh"><span class="ic"><svg viewBox="0 0 24 24"><path d="M5 4h11l3 3v13H5z"/><path d="M9 10h6M9 14h6"/></svg></span><div><small>Quest start</small><b>Briefing</b></div></div>
+                <div class="nb">Teams receive the crash-site dossier and a sealed radio frequency. Timer starts on first gate scan.</div>
+              </div>
+
+              <div class="node n-green" style="left:415px; top:130px">
+                <div class="nh"><span class="ic"><svg viewBox="0 0 24 24"><path d="M12 21s-6.5-5.4-6.5-10a6.5 6.5 0 0113 0c0 4.6-6.5 10-6.5 10z"/><circle cx="12" cy="10.6" r="2.3"/></svg></span><div><small>Location</small><b>Sector 7 Warehouse</b></div></div>
+                <div class="nb"><ul><li><span>Enemy placement</span><span>2 patrols</span></li><li><span>Sensors on site</span><span>RFID-07, MOT-04</span></li><li><span>Safety zone</span><span>marked</span></li></ul></div>
+              </div>
+
+              <div class="node n-red" style="left:830px; top:78px">
+                <div class="nh"><span class="ic"><svg viewBox="0 0 24 24"><path d="M5 5l14 14M19 5L5 19"/></svg></span><div><small>Enemy encounter</small><b>Security Patrols</b></div></div>
+                <div class="nb"><ul><li><span>NPC crew</span><span>Mank +1</span></li><li><span>Difficulty</span><span>Tier 2</span></li><li><span>Loop route</span><span>7 min</span></li></ul></div>
+              </div>
+
+              <div class="node n-amber sel" style="left:415px; top:392px">
+                <div class="nh"><span class="ic"><svg viewBox="0 0 24 24"><circle cx="8" cy="8" r="4"/><path d="M11 11l9 9M16 16l2-2"/></svg></span><div><small>Objective</small><b>Retrieve Cipher-Key</b></div></div>
+                <div class="nb"><ul><li><span>Item</span><span>CHM-A-004</span></li><li><span>Mechanic req.</span><span>Lockpicking</span></li><li><span>On success</span><span>unlock S-8</span></li></ul></div>
+              </div>
+
+              <div class="node n-purple" style="left:830px; top:392px">
+                <div class="nh"><span class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/></svg></span><div><small>Mechanic</small><b>RFID Lock Puzzle</b></div></div>
+                <div class="nb"><ul><li><span>Sensor</span><span>RFID-07</span></li><li><span>Fail state</span><span>alarm → patrols</span></li><li><span>Hint after</span><span>3 tries</span></li></ul></div>
+              </div>
+
+              <div class="node n-cyan" style="left:830px; top:592px; width:222px">
+                <div class="nh"><span class="ic"><svg viewBox="0 0 24 24"><path d="M4 10a11 11 0 0116 0M7 13.5a7 7 0 0110 0"/><circle cx="12" cy="17.5" r="1.4"/></svg></span><div><small>Sensor trigger</small><b>Locker 12 opened</b></div></div>
+                <div class="nb">Fires <b style="color:var(--ink)">quest.key_obtained</b> to Live Ops and lights the GM alert.</div>
+              </div>
+
+              <span class="elab" style="left:660px; top:328px; border-color:rgba(224,162,60,.5); color:#EDBB63">IF key obtained</span>
+              <span class="elab" style="left:672px; top:140px; border-color:rgba(232,100,100,.5); color:#F08C8C">ON alarm raised</span>
+              <span class="elab" style="left:664px; top:508px; border-color:rgba(168,123,240,.5); color:#C09BF0">REQUIRES mechanic</span>
+              <span class="elab" style="left:872px; top:332px; border-color:rgba(62,198,214,.5); color:#6FD4DF">THEN unlock Sector 8</span>
+
+              <div class="validation">⚠ 1 unreachable node · “Serum sidequest” has no incoming edge</div>
+              <div class="minimap">
+                <i style="left:10px;top:14px;width:18px;height:10px;background:#5CA8F5"></i>
+                <i style="left:42px;top:20px;width:18px;height:10px;background:#43BF87"></i>
+                <i style="left:84px;top:10px;width:18px;height:10px;background:#E86464"></i>
+                <i style="left:42px;top:48px;width:18px;height:10px;background:#E0A23C"></i>
+                <i style="left:84px;top:48px;width:18px;height:10px;background:#A87BF0"></i>
+                <i style="left:84px;top:70px;width:18px;height:10px;background:#3EC6D6"></i>
+              </div>
+              <div class="zoomer"><span>−</span><span class="mono">82%</span><span>+</span><span>⛶</span></div>
+            </div>
+          </div>
+
+          <aside class="inspector">
+            <div class="ihead" style="padding-top:18px">
+              <h3>Retrieve Cipher-Key</h3>
+              <div class="sub">Objective node · Act 1, step 3</div>
+            </div>
+            <div class="isect"><div class="lab">Grants item</div>
+              <div class="chips"><span class="lchip"><span class="sq" style="background:var(--c-item)"></span>Cipher-Key · CHM-A-004</span></div>
+            </div>
+            <div class="isect"><div class="lab">Requires</div>
+              <div class="chips">
+                <span class="lchip"><span class="sq" style="background:var(--c-mechanic)"></span>Lockpicking minigame</span>
+                <span class="lchip"><span class="sq" style="background:var(--c-location)"></span>Sector 7 · Locker 12</span>
+              </div>
+            </div>
+            <div class="isect"><div class="lab">On success</div>
+              <div class="field sm">Sensor RFID-07 confirms pickup → unlock Sector 8 gate → notify GM console.</div>
+            </div>
+            <div class="isect"><div class="lab">On failure</div>
+              <div class="field sm">3 failed attempts raise the alarm; Security Patrols reroute to Locker corridor for 5 minutes.</div>
+            </div>
+            <div class="isect"><div class="lab">Estimated player time</div>
+              <div class="frow"><div class="field mono">08–12 min</div><div class="field mono">Tier 2</div></div>
+            </div>
+            <div class="isect"><div class="lab">Crew notes</div>
+              <div class="field sm">Reset the lock servo between runs. Spare key taped inside GM binder, page 12.</div>
+            </div>
+            <div class="ifoot"><button class="btn" style="flex:1">Open item record</button><button class="btn ghost">⧉</button></div>
+          </aside>
+        </section>
+
+        <!-- ============ SCREEN 3 · LIVE OPS ============ -->
+        <section class="screen" id="s-ops">
+          <div class="main">
+            <div class="mhead">
+              <div>
+                <div class="crumb">Operation Chimera / <b>Live Ops</b></div>
+                <h2>Game Night — Mission Control</h2>
+              </div>
+              <div class="right">
+                <button class="btn ghost">Broadcast message</button>
+                <button class="btn ghost">Pause game</button>
+                <button class="btn" style="background:rgba(232,100,100,.15); border-color:rgba(232,100,100,.5); color:#F08C8C">■ Emergency stop</button>
+              </div>
+            </div>
+
+            <div class="kpis">
+              <div class="kpi"><small>Game clock</small><b>01:47:12</b><span class="trend" style="color:var(--muted)">/ 03:00</span></div>
+              <div class="kpi"><small>Act</small><b>2 of 3</b><span class="trend" style="color:#6FD9A7">on pace</span></div>
+              <div class="kpi"><small>Teams in play</small><b>3 / 3</b></div>
+              <div class="kpi"><small>Sensors online</small><b>15 / 16</b><span class="trend" style="color:#F08C8C">MOT-04 down</span></div>
+              <div class="kpi"><small>Open alerts</small><b>2</b><span class="trend" style="color:#EDBB63">1 needs GM</span></div>
+            </div>
+
+            <div class="ops">
+              <div class="map">
+                <svg class="site" viewBox="0 0 720 460" preserveAspectRatio="xMidYMid slice" aria-label="Site map">
+                  <rect x="40" y="40" width="300" height="180" rx="8" fill="#1B2030" stroke="#2C3448"/>
+                  <rect x="380" y="40" width="290" height="120" rx="8" fill="#1B2030" stroke="#2C3448"/>
+                  <rect x="40" y="260" width="180" height="150" rx="8" fill="#1B2030" stroke="#2C3448"/>
+                  <rect x="260" y="260" width="410" height="150" rx="8" fill="#161B28" stroke="#2C3448" stroke-dasharray="7 5"/>
+                  <text x="56" y="66" fill="#5C6375" font-size="12" font-family="Segoe UI, sans-serif" font-weight="600" stroke="none">SECTOR 7 — WAREHOUSE</text>
+                  <text x="396" y="66" fill="#5C6375" font-size="12" font-family="Segoe UI, sans-serif" font-weight="600" stroke="none">SECTOR 8 — LOCKED</text>
+                  <text x="56" y="286" fill="#5C6375" font-size="12" font-family="Segoe UI, sans-serif" font-weight="600" stroke="none">MED BAY / SAFE</text>
+                  <text x="276" y="286" fill="#5C6375" font-size="12" font-family="Segoe UI, sans-serif" font-weight="600" stroke="none">YARD — ACT 3 AREA</text>
+                  <!-- sensors -->
+                  <g stroke="none">
+                    <circle cx="150" cy="150" r="5" fill="#3EC6D6"/><circle class="ping" cx="150" cy="150" r="11" fill="none" stroke="#3EC6D6" stroke-width="1.5" opacity=".5"/>
+                    <circle cx="300" cy="90" r="5" fill="#3EC6D6"/>
+                    <circle cx="470" cy="100" r="5" fill="#E86464"/><circle cx="470" cy="100" r="11" fill="none" stroke="#E86464" stroke-width="1.5" opacity=".6"/>
+                    <circle cx="120" cy="330" r="5" fill="#3EC6D6"/>
+                    <circle cx="540" cy="330" r="5" fill="#3EC6D6"/>
+                  </g>
+                  <!-- teams -->
+                  <g stroke="none" font-family="Segoe UI, sans-serif" font-size="11" font-weight="700">
+                    <circle cx="200" cy="120" r="9" fill="#5CA8F5"/><text x="216" y="124" fill="#8CC1F5">RAVEN</text>
+                    <circle cx="255" cy="185" r="9" fill="#E0A23C"/><text x="271" y="189" fill="#EDBB63">WOLFPACK</text>
+                    <circle cx="130" cy="370" r="9" fill="#A87BF0"/><text x="146" y="374" fill="#C09BF0">CINDER</text>
+                  </g>
+                  <!-- patrol route -->
+                  <path d="M 90 210 C 160 240, 260 240, 330 210" stroke="#E86464" stroke-width="1.8" stroke-dasharray="5 6" fill="none" opacity=".7"/>
+                  <text x="150" y="248" fill="#E86464" font-size="10.5" font-weight="700" stroke="none" opacity=".8">PATROL ROUTE B</text>
+                </svg>
+                <style>.ping{animation:ping 2.2s ease-out infinite}@keyframes ping{0%{r:6;opacity:.7}100%{r:20;opacity:0}}</style>
+                <div class="maplegend">
+                  <span><i style="background:var(--c-sensor)"></i>Sensor online</span>
+                  <span><i style="background:var(--bad)"></i>Sensor fault</span>
+                  <span><i style="background:var(--c-narrative)"></i>Team position (staff radio ping)</span>
+                </div>
+              </div>
+
+              <div class="feed">
+                <div class="fh"><b>Event feed</b><span class="live"><i></i>LIVE</span></div>
+                <div class="events">
+                  <div class="ev alert"><time>21:47</time><span class="dot" style="background:var(--bad)"></span><p><b>MOT-04 offline</b> — motion sensor, Sector 7 north door. Assign crew to check battery.</p></div>
+                  <div class="ev"><time>21:44</time><span class="dot" style="background:var(--c-item)"></span><p><b>Team Wolfpack</b> obtained <b>Encrypted Dataslate</b> · quest flag <span class="mono">key_obtained</span> set.</p></div>
+                  <div class="ev"><time>21:42</time><span class="dot" style="background:var(--c-sensor)"></span><p><b>RFID-07 triggered</b> — Locker 12 opened by Team Raven tag.</p></div>
+                  <div class="ev"><time>21:38</time><span class="dot" style="background:var(--c-enemy)"></span><p><b>Alarm event</b> — Security patrols rerouted to Locker corridor for 5 min.</p></div>
+                  <div class="ev"><time>21:31</time><span class="dot" style="background:var(--c-mechanic)"></span><p><b>Decryption puzzle</b> started by Team Cinder · hint timer armed (3 tries).</p></div>
+                  <div class="ev"><time>21:24</time><span class="dot" style="background:var(--c-location)"></span><p><b>Sector 8 gate</b> unlocked · Act 2 area now reachable.</p></div>
+                  <div class="ev"><time>21:12</time><span class="dot" style="background:var(--c-narrative)"></span><p><b>Act 2 started</b> — briefing audio played on all comms units.</p></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="teamstrip">
+              <div class="tcard"><div class="tr1"><span class="tsq" style="background:var(--c-narrative)"></span><b>Team Raven</b><span class="pill p-ok" style="margin-left:auto"><i></i>In play</span></div>
+                <div class="obj">Objective 4/7 — Deliver Cipher-Key to Quartermaster</div>
+                <div class="bar"><i style="width:57%; background:var(--c-narrative)"></i></div>
+                <div class="tmeta"><span>4 players</span><span>last ping 40 s</span></div></div>
+              <div class="tcard"><div class="tr1"><span class="tsq" style="background:var(--c-item)"></span><b>Team Wolfpack</b><span class="pill p-ok" style="margin-left:auto"><i></i>In play</span></div>
+                <div class="obj">Objective 5/7 — Decode dataslate at Comms bench</div>
+                <div class="bar"><i style="width:71%; background:var(--c-item)"></i></div>
+                <div class="tmeta"><span>5 players</span><span>last ping 12 s</span></div></div>
+              <div class="tcard"><div class="tr1"><span class="tsq" style="background:var(--c-mechanic)"></span><b>Team Cinder</b><span class="pill p-warn" style="margin-left:auto"><i></i>Stuck 9 min</span></div>
+                <div class="obj">Objective 3/7 — Decryption puzzle, 2 failed tries</div>
+                <div class="bar"><i style="width:43%; background:var(--c-mechanic)"></i></div>
+                <div class="tmeta"><span>4 players</span><span>hint ready → send?</span></div></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============ SCREEN 4 · PLAYERS & TEAMS ============ -->
+        <section class="screen" id="s-teams">
+          <div class="main">
+            <div class="mhead">
+              <div>
+                <div class="crumb">Operation Chimera / <b>Players &amp; Teams</b></div>
+                <h2>Teams &amp; Rosters</h2>
+              </div>
+              <div class="right">
+                <button class="btn ghost">Check-in mode</button>
+                <button class="btn ghost">Balance teams</button>
+                <button class="btn primary">+ Add player</button>
+              </div>
+            </div>
+            <div class="toolrow">
+              <span class="search"><svg viewBox="0 0 24 24" style="width:13px;height:13px"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/></svg>Search players, roles, tags…</span>
+              <button class="chip on" style="background:var(--brand)">All teams</button>
+              <button class="chip">Checked in</button>
+              <button class="chip">Kit issued</button>
+              <button class="chip">Waivers missing</button>
+            </div>
+
+            <div class="teamgrid">
+              <div class="team sel">
+                <div class="th"><span class="emb" style="background:var(--c-narrative)">R</span><div><b>Team Raven</b><small>Infiltration specialists · returning crew</small></div><span class="pill p-ok"><i></i>4/4 in</span></div>
+                <div class="roster">
+                  <div class="pl"><span class="av" style="background:#4C7FB8">EK</span><b>Elza K.</b><span class="flag med">MED</span><span class="role">Leader</span></div>
+                  <div class="pl"><span class="av" style="background:#6A8F5C">JB</span><b>Janis B.</b><span class="role">Engineer</span></div>
+                  <div class="pl"><span class="av" style="background:#A8744C">LS</span><b>Liene S.</b><span class="role">Medic</span></div>
+                  <div class="pl"><span class="av" style="background:#8B6BB8">MO</span><b>Marks O.</b><span class="flag new">NEW</span><span class="role">Scout</span></div>
+                </div>
+                <div style="padding:4px 15px 10px">
+                  <div class="kitline"><span><span class="check on"></span>Comms Unit</span><span class="mono">CHM-G-005</span></div>
+                  <div class="kitline"><span><span class="check on"></span>UV Torch ×2</span><span class="mono">CHM-G-001</span></div>
+                  <div class="kitline"><span><span class="check"></span>Player tags (RFID)</span><span class="mono">4 pending</span></div>
+                </div>
+                <div class="tf"><span>Games played <b>7</b></span><span>Win rate <b>58%</b></span><span>Waivers <b>4/4</b></span></div>
+              </div>
+
+              <div class="team">
+                <div class="th"><span class="emb" style="background:var(--c-item)">W</span><div><b>Team Wolfpack</b><small>Puzzle-heavy playstyle · mixed experience</small></div><span class="pill p-ok"><i></i>5/5 in</span></div>
+                <div class="roster">
+                  <div class="pl"><span class="av" style="background:#B8564C">AV</span><b>Anna V.</b><span class="role">Leader</span></div>
+                  <div class="pl"><span class="av" style="background:#4C9FB8">RD</span><b>Rihards D.</b><span class="role">Decoder</span></div>
+                  <div class="pl"><span class="av" style="background:#7C8B4C">KP</span><b>Kate P.</b><span class="flag med">MED</span><span class="role">Medic</span></div>
+                  <div class="pl"><span class="av" style="background:#9B5CB8">TU</span><b>Toms U.</b><span class="role">Runner</span></div>
+                  <div class="pl"><span class="av" style="background:#B8964C">IZ</span><b>Ilze Z.</b><span class="flag new">NEW</span><span class="role">Scout</span></div>
+                </div>
+                <div style="padding:4px 15px 10px">
+                  <div class="kitline"><span><span class="check on"></span>Comms Unit</span><span class="mono">CHM-G-006</span></div>
+                  <div class="kitline"><span><span class="check on"></span>Player tags (RFID)</span><span class="mono">5 issued</span></div>
+                  <div class="kitline"><span><span class="check on"></span>Medkit Prop</span><span class="mono">CHM-C-009</span></div>
+                </div>
+                <div class="tf"><span>Games played <b>3</b></span><span>Win rate <b>66%</b></span><span>Waivers <b>5/5</b></span></div>
+              </div>
+
+              <div class="team">
+                <div class="th"><span class="emb" style="background:var(--c-mechanic)">C</span><div><b>Team Cinder</b><small>First-timers · assign shepherd NPC</small></div><span class="pill p-warn"><i></i>3/4 in</span></div>
+                <div class="roster">
+                  <div class="pl"><span class="av" style="background:#4C6FB8">DK</span><b>Davis K.</b><span class="role">Leader</span></div>
+                  <div class="pl"><span class="av" style="background:#B84C7C">SN</span><b>Sanita N.</b><span class="flag new">NEW</span><span class="role">Decoder</span></div>
+                  <div class="pl"><span class="av" style="background:#4CB89B">EG</span><b>Emils G.</b><span class="flag new">NEW</span><span class="role">Runner</span></div>
+                  <div class="pl" style="opacity:.45"><span class="av" style="background:#5C6375">VP</span><b>Viktors P.</b><span class="role">no-show?</span></div>
+                </div>
+                <div style="padding:4px 15px 10px">
+                  <div class="kitline"><span><span class="check on"></span>Comms Unit</span><span class="mono">CHM-G-007</span></div>
+                  <div class="kitline"><span><span class="check"></span>UV Torch</span><span class="mono">not issued</span></div>
+                  <div class="kitline"><span><span class="check"></span>Waiver — Sanita N.</span><span class="mono">missing</span></div>
+                </div>
+                <div class="tf"><span>Games played <b>0</b></span><span>Win rate <b>—</b></span><span>Waivers <b>3/4</b></span></div>
+              </div>
+            </div>
+          </div>
+
+          <aside class="inspector">
+            <div class="ihead" style="padding-top:18px">
+              <div style="display:flex; align-items:center; gap:11px">
+                <span class="av" style="width:40px;height:40px;font-size:14px;background:#4C7FB8">EK</span>
+                <div><h3>Elza K.</h3><div class="sub">Team Raven · Leader · 7 games</div></div>
+              </div>
+            </div>
+            <div class="isect"><div class="lab">Status tonight</div>
+              <div class="chips">
+                <span class="lchip" style="border-color:rgba(67,191,135,.5); color:#6FD9A7">Checked in 20:05</span>
+                <span class="lchip" style="border-color:rgba(67,191,135,.5); color:#6FD9A7">Waiver signed</span>
+              </div>
+            </div>
+            <div class="isect"><div class="lab">Safety &amp; consent</div>
+              <div class="field sm">Asthma — carries inhaler. No physical grappling. Emergency contact on file.</div>
+            </div>
+            <div class="isect"><div class="lab">Issued kit</div>
+              <div class="chips">
+                <span class="lchip"><span class="sq" style="background:var(--c-item)"></span>RFID tag T-014</span>
+                <span class="lchip"><span class="sq" style="background:var(--c-sensor)"></span>Comms ch. 3</span>
+              </div>
+            </div>
+            <div class="isect"><div class="lab">History</div>
+              <div class="field sm">Solved the mainframe puzzle solo in “Blackout” (May). Prefers stealth objectives; flag for Act 3 infiltration route.</div>
+            </div>
+            <div class="ifoot"><button class="btn" style="flex:1">Open player record</button><button class="btn ghost">⧉</button></div>
+          </aside>
+        </section>
+
+      </div><!-- /work -->
+    </div><!-- /chrome -->
+  </div><!-- /frame -->
+
+  <p class="note">Concept mockups — thumbnails are placeholders for real prop photos. Switch screens with the tabs above or the sidebar (Items, Narrative, Live Ops, Players).</p>
+</div>
+
+<script>
+  const screens = {items:'s-items', flow:'s-flow', ops:'s-ops', teams:'s-teams'};
+  function go(key){
+    document.querySelectorAll('.screen').forEach(s=>s.classList.toggle('on', s.id===screens[key]));
+    document.querySelectorAll('.switch button').forEach(b=>b.classList.toggle('on', b.dataset.go===key));
+    document.querySelectorAll('.nav[data-nav]').forEach(n=>n.classList.toggle('on', n.dataset.nav===key));
+  }
+  document.querySelectorAll('.switch button').forEach(b=>b.addEventListener('click',()=>go(b.dataset.go)));
+  document.querySelectorAll('.nav[data-nav]').forEach(n=>n.addEventListener('click',()=>go(n.dataset.nav)));
+  go('items');
+</script>
