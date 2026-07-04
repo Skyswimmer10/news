@@ -86,6 +86,25 @@ export function reducer(state, action) {
       };
     }
 
+    // ---- scenario graph editing ----
+    case 'ADD_NODE': {
+      const n = action.node;
+      if (!n?.id || state.nodes[n.id]) return state;
+      return { ...state, nodes: { ...state.nodes, [n.id]: n } };
+    }
+
+    // Connect two nodes. Ignores self-loops and duplicate connections.
+    case 'ADD_EDGE': {
+      const { from, to, label = '', color = null } = action;
+      if (from === to || !state.nodes[from] || !state.nodes[to]) return state;
+      if (state.edges.some((e) => e.from === from && e.to === to)) return state;
+      return { ...state, edges: [...state.edges, { from, to, label, color }] };
+    }
+
+    case 'REMOVE_EDGE': {
+      return { ...state, edges: state.edges.filter((e) => !(e.from === action.from && e.to === action.to)) };
+    }
+
     // Uploaded file becomes the primary thumbnail for the item / location.
     case 'SET_IMAGE': {
       const { coll, id, image } = action; // image: { dataUrl?, kind, name } | null

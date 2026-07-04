@@ -36,7 +36,12 @@ function ItemPanel({ item, viaNode }) {
 
   return (
     <>
-      {viaNode && <div className="via">Node <b>{viaNode.title}</b> → item record</div>}
+      {viaNode && (
+        <div className="via">Node <b>{viaNode.title}</b> → item record
+          <button className="linkbtn" style={{ marginLeft: 'auto' }} title="Detach this node from the item"
+            onClick={() => dispatch({ type: 'UPDATE_ENTITY', coll: 'nodes', id: viaNode.id, patch: { itemId: null } })}>Unlink</button>
+        </div>
+      )}
       <div className="ihead">
         <ImageUploader coll="items" entity={item} />
         <div className="ihrow">
@@ -129,7 +134,12 @@ function LocationPanel({ location, viaNode }) {
   const upd = (patch) => dispatch({ type: 'UPDATE_ENTITY', coll: 'locations', id: location.id, patch });
   return (
     <>
-      {viaNode && <div className="via">Node <b>{viaNode.title}</b> → location record</div>}
+      {viaNode && (
+        <div className="via">Node <b>{viaNode.title}</b> → location record
+          <button className="linkbtn" style={{ marginLeft: 'auto' }} title="Detach this node from the location"
+            onClick={() => dispatch({ type: 'UPDATE_ENTITY', coll: 'nodes', id: viaNode.id, patch: { locationId: null } })}>Unlink</button>
+        </div>
+      )}
       <div className="ihead">
         <ImageUploader coll="locations" entity={location} />
         <div className="ihrow"><h3>{location.name}</h3></div>
@@ -182,6 +192,63 @@ function PlayerPanel({ player }) {
   );
 }
 
+const NODE_SWATCHES = ['#5CA8F5', '#43BF87', '#E0A23C', '#E86464', '#A87BF0', '#3EC6D6', '#E8D25C', '#F08CB4'];
+
+// Editable panel for a plain node (no linked record yet): rename it, write
+// notes, pick its top color, or link it to an item / location record.
+function NodePanel({ node }) {
+  const s = useGame();
+  const dispatch = useDispatch();
+  const upd = (patch) => dispatch({ type: 'UPDATE_ENTITY', coll: 'nodes', id: node.id, patch });
+  const color = node.color || ENTITY_COLORS[node.kind] || '#8B92A6';
+  const connections = s.edges.filter((e) => e.from === node.id || e.to === node.id);
+  return (
+    <>
+      <div className="ihead">
+        <div className="ihrow"><span className="sq big" style={{ background: color }} /><h3>{node.title}</h3></div>
+        <div className="sub">{node.kind} node · {node.id}</div>
+      </div>
+      <TextField label="Node title" value={node.title} onCommit={(v) => upd({ title: v })} />
+      <TextField label="Notes" textarea value={node.body} onCommit={(v) => upd({ body: v })} />
+      <div className="isect">
+        <SectionLabel>Node color</SectionLabel>
+        <div className="chips">
+          {NODE_SWATCHES.map((c) => (
+            <button key={c} className={`swatch${color === c ? ' on' : ''}`} style={{ background: c }} onClick={() => upd({ color: c })} />
+          ))}
+          <button className="linkbtn" onClick={() => upd({ color: null })}>Auto</button>
+        </div>
+      </div>
+      <div className="isect">
+        <SectionLabel>Link to a record</SectionLabel>
+        <select className="field-input" value="" onChange={(e) => {
+          const v = e.target.value;
+          if (v.startsWith('item:')) upd({ itemId: v.slice(5) });
+          else if (v.startsWith('loc:')) upd({ locationId: v.slice(4) });
+        }}>
+          <option value="">— link an item or location —</option>
+          <optgroup label="Items">
+            {Object.values(s.items).map((i) => <option key={i.id} value={`item:${i.id}`}>{i.name} · {i.id}</option>)}
+          </optgroup>
+          <optgroup label="Locations">
+            {Object.values(s.locations).map((l) => <option key={l.id} value={`loc:${l.id}`}>{l.name}</option>)}
+          </optgroup>
+        </select>
+        <div className="hint">Linked nodes show the live record here instead.</div>
+      </div>
+      <div className="isect">
+        <SectionLabel>Connections</SectionLabel>
+        <div className="chips">
+          {connections.map((e, i) => (
+            <Chip key={i} color={color}>{e.from === node.id ? `→ ${s.nodes[e.to]?.title}` : `← ${s.nodes[e.from]?.title}`}</Chip>
+          ))}
+          {connections.length === 0 && <span className="dim">none — drag from the node's ○ port on the canvas</span>}
+        </div>
+      </div>
+    </>
+  );
+}
+
 // The shared right-hand details panel. Selecting a flow node that references an
 // item resolves it against the Item Database state and shows the live record.
 export default function Inspector({ selection, onSelect }) {
@@ -200,13 +267,7 @@ export default function Inspector({ selection, onSelect }) {
     if (!r) body = null;
     else if (r.item) body = <ItemPanel item={r.item} viaNode={r.node} />;
     else if (r.location) body = <LocationPanel location={r.location} viaNode={r.node} />;
-    else body = (
-      <div className="ihead">
-        <div className="ihrow"><h3>{r.node.title}</h3></div>
-        <div className="sub">{r.node.kind} node</div>
-        <p className="dim" style={{ marginTop: 10 }}>{r.node.body}</p>
-      </div>
-    );
+    else body = <NodePanel node={r.node} />;
   }
   return <aside className="inspector" key={`${selection.kind}:${selection.id}`}>{body ?? <div className="empty">Record not found.</div>}</aside>;
 }

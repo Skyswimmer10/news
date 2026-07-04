@@ -137,17 +137,44 @@ tbody tr.sel td{background:rgba(224,162,60,.09);box-shadow:inset 3px 0 0 var(--c
 
 /* flow canvas */
 .canvas{flex:1;position:relative;overflow:auto;border-top:1px solid var(--line-soft);
-        background:radial-gradient(circle at 1px 1px,#262B3A 1px,transparent 1.5px) 0 0/22px 22px,#14161F}
-.edges{position:absolute;inset:0;width:1400px;height:600px;pointer-events:none}
-.node{position:absolute;border-radius:12px;background:rgba(26,29,38,.94);border:1px solid var(--line);border-top:3px solid;box-shadow:0 10px 30px -12px rgba(0,0,0,.6);text-align:left}
+        background:radial-gradient(circle at 1px 1px,#262B3A 1px,transparent 1.5px) 0 0/22px 22px,#14161F;
+        user-select:none}
+.edges{position:absolute;top:0;left:0}
+.edges path{pointer-events:none}
+.edges foreignObject{overflow:visible}
+.node{position:absolute;border-radius:12px;background:rgba(26,29,38,.94);border:1px solid var(--line);border-top:3px solid;box-shadow:0 10px 30px -12px rgba(0,0,0,.6);text-align:left;cursor:grab;touch-action:none}
+.node:active{cursor:grabbing}
 .node.sel{box-shadow:0 0 0 2px var(--brand),0 10px 30px -12px rgba(0,0,0,.6)}
+.node.droppable{outline:2px dashed rgba(139,123,245,.55);outline-offset:3px}
 .node .nh{display:flex;align-items:center;gap:9px;padding:10px 12px;border-bottom:1px solid var(--line-soft)}
-.node .nh .ic{width:12px;height:12px;border-radius:4px;flex:none}
 .node .nh small{display:block;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
 .node .nh b{font-size:12.5px}
-.node .nb{padding:9px 12px 11px;color:var(--muted);font-size:11.5px;line-height:1.5}
+.node .nb{padding:9px 12px 11px;color:var(--muted);font-size:11.5px;line-height:1.5;min-height:20px}
 .nref{display:flex;align-items:center;gap:8px;margin-top:8px;background:var(--raised);border:1px solid var(--line-soft);border-radius:6px;padding:5px 8px}
-.elab{font-size:10px;font-weight:700;padding:3px 8px;border-radius:99px;background:#181B25;border:1px solid;white-space:nowrap;display:inline-block;max-width:140px;overflow:hidden;text-overflow:ellipsis}
+.elab{font-size:10px;font-weight:700;padding:3px 8px;border-radius:99px;background:#181B25;border:1px solid;white-space:nowrap;display:inline-flex;align-items:center;gap:4px;max-width:148px;overflow:hidden;pointer-events:auto}
+.elab span{overflow:hidden;text-overflow:ellipsis}
+.elab .x{display:none;color:inherit;font-size:12px;line-height:1;padding:0 2px}
+.elab:hover .x{display:inline}
+.elab .x:hover{color:var(--bad)}
+
+/* ports, color picker, add-node row */
+.port{position:absolute;right:-7px;top:29px;width:14px;height:14px;border-radius:50%;background:var(--raised);border:2px solid var(--faint);cursor:crosshair;touch-action:none}
+.port:hover{border-color:var(--brand);background:rgba(139,123,245,.25)}
+.icpick{width:14px;height:14px;border-radius:4px;flex:none;cursor:pointer;border:0;padding:0}
+.icpick:hover{box-shadow:0 0 0 2px rgba(255,255,255,.35)}
+.swatchpop{position:absolute;left:10px;top:40px;z-index:5;display:flex;align-items:center;gap:5px;background:#0F1117;border:1px solid var(--line);border-radius:9px;padding:7px 9px;box-shadow:0 12px 30px -8px rgba(0,0,0,.7)}
+.swatch{width:16px;height:16px;border-radius:5px;border:0;padding:0;cursor:pointer;flex:none}
+.swatch:hover{box-shadow:0 0 0 2px rgba(255,255,255,.4)}
+.swatch.on{box-shadow:0 0 0 2px #fff}
+.swatch.custom{position:relative;background:conic-gradient(#E86464,#E0A23C,#43BF87,#3EC6D6,#5CA8F5,#A87BF0,#E86464);display:inline-block}
+.swatch.custom input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.swatchauto{font-size:10.5px;font-weight:700;color:var(--muted);padding:2px 6px;border-radius:5px;border:1px solid var(--line)}
+.swatchauto:hover{color:var(--ink)}
+.addlab{font-size:11.5px}
+.addnode{display:inline-flex;align-items:center;gap:7px;font-size:11.5px;font-weight:600;padding:5px 11px;border-radius:7px;border:1px dashed var(--line);color:var(--muted)}
+.addnode:hover{color:var(--ink);border-color:var(--brand);border-style:solid}
+.addnode .sq{width:9px;height:9px;border-radius:3px}
+.sq.big{width:14px;height:14px;border-radius:4px;flex:none}
 
 /* teams */
 .teamgrid{flex:1;overflow-y:auto;border-top:1px solid var(--line-soft);padding:16px 20px;display:flex;flex-direction:column;gap:14px}

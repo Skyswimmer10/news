@@ -72,3 +72,37 @@ describe('images and hardware requirements', () => {
     expect(s.sensors['RF-01'].assignedTo).toBe('P-JANIS');
   });
 });
+
+describe('scenario graph editing', () => {
+  const newNode = { id: 'N-TEST', kind: 'story', title: 'New story beat', x: 100, y: 100, body: '', color: null, locationId: null, itemId: null, mechanicIds: [], sensorIds: [] };
+
+  it('adds a node and connects it to an existing node', () => {
+    let s = reducer(seed(), { type: 'ADD_NODE', node: newNode });
+    expect(s.nodes['N-TEST'].title).toBe('New story beat');
+    const before = s.edges.length;
+    s = reducer(s, { type: 'ADD_EDGE', from: 'N-BRIEF', to: 'N-TEST', color: '#5CA8F5' });
+    expect(s.edges.length).toBe(before + 1);
+    expect(s.edges.at(-1)).toMatchObject({ from: 'N-BRIEF', to: 'N-TEST', color: '#5CA8F5' });
+  });
+
+  it('rejects self-loops and duplicate connections', () => {
+    let s = reducer(seed(), { type: 'ADD_NODE', node: newNode });
+    const before = s.edges.length;
+    s = reducer(s, { type: 'ADD_EDGE', from: 'N-TEST', to: 'N-TEST' });
+    expect(s.edges.length).toBe(before);
+    s = reducer(s, { type: 'ADD_EDGE', from: 'N-BRIEF', to: 'N-S7' }); // exists in seed
+    expect(s.edges.length).toBe(before);
+  });
+
+  it('removes a connection', () => {
+    const before = seed().edges.length;
+    const s = reducer(seed(), { type: 'REMOVE_EDGE', from: 'N-BRIEF', to: 'N-S7' });
+    expect(s.edges.length).toBe(before - 1);
+  });
+
+  it('node drag position and color pick persist via UPDATE_ENTITY', () => {
+    let s = reducer(seed(), { type: 'UPDATE_ENTITY', coll: 'nodes', id: 'N-BRIEF', patch: { x: 500, y: 250 } });
+    s = reducer(s, { type: 'UPDATE_ENTITY', coll: 'nodes', id: 'N-BRIEF', patch: { color: '#E8D25C' } });
+    expect(s.nodes['N-BRIEF']).toMatchObject({ x: 500, y: 250, color: '#E8D25C' });
+  });
+});
