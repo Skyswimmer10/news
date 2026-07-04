@@ -11,16 +11,17 @@
 //      game-state fields (build status, availability, placement, assignment,
 //      sensor battery) · edits affect only this game
 
-export const LIB_REV = 3;
+export const LIB_REV = 4;
 export const SEED_REV = 4;
 
-// Categories for single Narrative Elements (self-contained story pieces).
-export const ELEMENT_TYPES = {
-  'plot-hook': { label: 'Plot hook', color: '#F08CB4' },
-  'briefing-script': { label: 'Briefing script', color: '#5CA8F5' },
-  'npc-bio': { label: 'NPC bio', color: '#E0A23C' },
-  'rumor': { label: 'Rumor', color: '#43BF87' },
-  'lore': { label: 'Lore fragment', color: '#A87BF0' },
+// Default categories for single Narrative Elements. These seed the editable
+// lib.elementTypes collection — users can add and delete categories at will.
+export const DEFAULT_ELEMENT_TYPES = {
+  'plot-hook': { id: 'plot-hook', label: 'Plot hook', color: '#F08CB4' },
+  'briefing-script': { id: 'briefing-script', label: 'Briefing script', color: '#5CA8F5' },
+  'npc-bio': { id: 'npc-bio', label: 'NPC bio', color: '#E0A23C' },
+  'rumor': { id: 'rumor', label: 'Rumor', color: '#43BF87' },
+  'lore': { id: 'lore', label: 'Lore fragment', color: '#A87BF0' },
 };
 
 // Blank factories for the Library's "+ New …" buttons and id prefixes.
@@ -92,6 +93,9 @@ export function makeLibrarySeed() {
       'LIB-PRIM-TWIST': { id: 'LIB-PRIM-TWIST', name: 'Plot Twist', baseKind: 'story', color: '#F08CB4', icon: 'alert', inputs: ['in'], outputs: ['out'], defaultBody: 'A revelation reframes the mission. Deliver via NPC or comms.', estMinutes: 5, crew: 1 },
       'LIB-PRIM-TIMER': { id: 'LIB-PRIM-TIMER', name: 'Countdown Pressure', baseKind: 'mechanic', color: '#E8D25C', icon: 'clock', inputs: ['start'], outputs: ['expired'], defaultBody: 'Visible countdown; expiry punishes or escalates.', estMinutes: 15, crew: 0 },
     },
+
+    // Editable element categories (add/delete in the Narrative Elements tab).
+    elementTypes: { ...DEFAULT_ELEMENT_TYPES },
 
     // NARRATIVE ELEMENTS: single, self-contained story pieces — hooks, scripts,
     // bios, rumors, lore. Importable into a game as a ready-made story node.

@@ -4,7 +4,7 @@ import { Thumb, ENTITY_COLORS, PrimIcon } from '../components/bits.jsx';
 import FlowCanvas from '../components/FlowCanvas.jsx';
 import StructureThumb, { structNodeColor } from '../components/StructureThumb.jsx';
 import { primitiveToStructNode } from '../state/bridge.js';
-import { LIB_BLANK, LIB_PREFIX, ELEMENT_TYPES } from '../data/seed.js';
+import { LIB_BLANK, LIB_PREFIX } from '../data/seed.js';
 import { genId } from '../data/csvSchemas.js';
 
 const TABS = [
@@ -16,6 +16,16 @@ const TABS = [
   { id: 'elements', label: 'Narrative Elements', color: '#E8D25C', addLabel: '+ New element' },
   { id: 'stories', label: 'Story Structures', color: 'var(--c-narrative)', addLabel: '+ New structure' },
 ];
+
+// Three top-level groups keep the catalogue uncrowded; each sidebar entry
+// shows only its own collections.
+const GROUP_META = {
+  physical: { label: 'Physical', tabs: ['items', 'locations', 'sensors'] },
+  mechanics: { label: 'Game Mechanics', tabs: ['mechanics'] },
+  story: { label: 'Story & Narrative', tabs: ['primitives', 'elements', 'stories'] },
+};
+
+const CATEGORY_COLORS = ['#F08CB4', '#5CA8F5', '#E0A23C', '#43BF87', '#A87BF0', '#E8D25C', '#3EC6D6', '#E86464'];
 
 // Draggable palette entry: drop onto the structure editor canvas to add a
 // node built from this primitive.
@@ -92,24 +102,60 @@ function StructureEditor({ structure, selection, onSelect, onBack }) {
 // The master database. Two narrative sub-sections: Narrative Primitives
 // (isolated building-block node templates) and Story Structures (saved,
 // editable node graphs assembled from primitives).
-export default function Library({ selection, onSelect }) {
+export default function Library({ group = 'physical', selection, onSelect }) {
   const lib = useLibrary();
   const libDispatch = useLibraryDispatch();
-  const [tab, setTab] = useState('items');
+  const groupMeta = GROUP_META[group] ?? GROUP_META.physical;
+  const [tab, setTab] = useState(groupMeta.tabs[0]);
   const [editingStory, setEditingStory] = useState(null);
   const [elemFilter, setElemFilter] = useState('all');
   const selId = selection?.kind?.startsWith('lib-') ? selection.id : null;
   const pick = (coll, id) => onSelect({ kind: `lib-${coll}`, id });
 
+  // Switching sidebar groups lands on that group's first collection.
+  React.useEffect(() => {
+    if (!groupMeta.tabs.includes(tab)) { setTab(groupMeta.tabs[0]); setEditingStory(null); }
+  }, [group]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // "+ New …" for every library section: create a blank template, select it;
   // new structures open straight into the graph editor.
   const addNew = () => {
     const id = genId(lib[tab], LIB_PREFIX[tab]);
-    libDispatch({ type: 'ADD_ENTITY', coll: tab, entity: LIB_BLANK[tab](id) });
+    let entity = LIB_BLANK[tab](id);
+    if (tab === 'elements') {
+      const etype = elemFilter !== 'all' && lib.elementTypes[elemFilter]
+        ? elemFilter : Object.keys(lib.elementTypes)[0] ?? 'plot-hook';
+      entity = { ...entity, etype };
+    }
+    libDispatch({ type: 'ADD_ENTITY', coll: tab, entity });
     pick(tab, id);
     if (tab === 'stories') setEditingStory(id);
   };
-  const activeTab = TABS.find((t) => t.id === tab);
+  const activeTab = TABS.find((t) => t.id === tab) ?? TABS[0];
+
+  // ---- editable element categories ----
+  const addCategory = () => {
+    const label = window.prompt('Name for the new element category:');
+    if (!label?.trim()) return;
+    let key = label.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'category';
+    while (lib.elementTypes[key]) key += '-2';
+    const color = CATEGORY_COLORS[Object.keys(lib.elementTypes).length % CATEGORY_COLORS.length];
+    libDispatch({ type: 'ADD_ENTITY', coll: 'elementTypes', entity: { id: key, label: label.trim(), color } });
+    setElemFilter(key);
+  };
+  const deleteCategory = (key) => {
+    const remaining = Object.keys(lib.elementTypes).filter((k) => k !== key);
+    if (remaining.length === 0) { window.alert('At least one category must remain.'); return; }
+    const used = Object.values(lib.elements).filter((el) => el.etype === key);
+    const fallback = remaining[0];
+    const msg = used.length
+      ? `Delete "${lib.elementTypes[key].label}"? ${used.length} element(s) will be moved to "${lib.elementTypes[fallback].label}".`
+      : `Delete the empty category "${lib.elementTypes[key].label}"?`;
+    if (!window.confirm(msg)) return;
+    used.forEach((el) => libDispatch({ type: 'UPDATE_ENTITY', coll: 'elements', id: el.id, patch: { etype: fallback } }));
+    libDispatch({ type: 'DELETE_ENTITY', coll: 'elementTypes', id: key });
+    if (elemFilter === key) setElemFilter('all');
+  };
 
   if (editingStory && lib.stories[editingStory]) {
     return <StructureEditor structure={lib.stories[editingStory]} selection={selection} onSelect={onSelect}
@@ -120,8 +166,8 @@ export default function Library({ selection, onSelect }) {
     <div className="main">
       <div className="mhead">
         <div>
-          <div className="crumb">Library / <b>Master database</b></div>
-          <h2>Library Catalogue</h2>
+          <div className="crumb">Library / <b>{groupMeta.label}</b></div>
+          <h2>Library — {groupMeta.label}</h2>
         </div>
         <div className="right">
           <span className="libbadge">Templates — reusable across games</span>
@@ -129,13 +175,16 @@ export default function Library({ selection, onSelect }) {
         </div>
       </div>
       <div className="toolrow">
-        {TABS.map((t) => (
-          <button key={t.id} className={`chip${tab === t.id ? ' on' : ''}`}
-            style={tab === t.id ? { background: t.color } : undefined}
-            onClick={() => setTab(t.id)}>
-            {t.label} · {Object.keys(lib[t.id]).length}
-          </button>
-        ))}
+        {groupMeta.tabs.map((tid) => {
+          const t = TABS.find((x) => x.id === tid);
+          return (
+            <button key={t.id} className={`chip${tab === t.id ? ' on' : ''}`}
+              style={tab === t.id ? { background: t.color } : undefined}
+              onClick={() => setTab(t.id)}>
+              {t.label} · {Object.keys(lib[t.id]).length}
+            </button>
+          );
+        })}
       </div>
 
       {(tab === 'items' || tab === 'locations') && (
@@ -202,17 +251,22 @@ export default function Library({ selection, onSelect }) {
             <button className={`chip${elemFilter === 'all' ? ' on' : ''}`}
               style={elemFilter === 'all' ? { background: '#E8D25C', color: '#1A1D26' } : undefined}
               onClick={() => setElemFilter('all')}>All · {Object.keys(lib.elements).length}</button>
-            {Object.entries(ELEMENT_TYPES).map(([key, meta]) => (
-              <button key={key} className={`chip${elemFilter === key ? ' on' : ''}`}
-                style={elemFilter === key ? { background: meta.color } : undefined}
-                onClick={() => setElemFilter(key)}>{meta.label}s</button>
+            {Object.values(lib.elementTypes).map((meta) => (
+              <span key={meta.id} className={`chip cat${elemFilter === meta.id ? ' on' : ''}`}
+                style={elemFilter === meta.id ? { background: meta.color } : undefined}
+                onClick={() => setElemFilter(meta.id)} role="button" tabIndex={0}>
+                {meta.label}s
+                <button className="x" title={`Delete category "${meta.label}"`}
+                  onClick={(e) => { e.stopPropagation(); deleteCategory(meta.id); }}>×</button>
+              </span>
             ))}
+            <button className="chip addcat" onClick={addCategory}>+ New category</button>
           </div>
           <div className="gallery elem">
             {Object.values(lib.elements)
               .filter((el) => elemFilter === 'all' || el.etype === elemFilter)
               .map((el) => {
-                const meta = ELEMENT_TYPES[el.etype] ?? { label: el.etype, color: '#8B92A6' };
+                const meta = lib.elementTypes[el.etype] ?? { label: el.etype, color: '#8B92A6' };
                 return (
                   <button key={el.id} className={`elemcard${selId === el.id ? ' sel' : ''}`}
                     style={{ borderTopColor: meta.color }} onClick={() => pick('elements', el.id)}>
@@ -223,6 +277,11 @@ export default function Library({ selection, onSelect }) {
                   </button>
                 );
               })}
+            {Object.values(lib.elements).every((el) => elemFilter !== 'all' && el.etype !== elemFilter) && (
+              <div className="empty" style={{ gridColumn: '1/-1' }}>
+                No elements in this category yet — <b>{activeTab.addLabel}</b> creates one here.
+              </div>
+            )}
           </div>
         </div>
       )}

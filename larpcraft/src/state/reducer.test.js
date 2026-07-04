@@ -74,6 +74,27 @@ describe('images and hardware requirements', () => {
   });
 });
 
+describe('entity deletion and element categories', () => {
+  it('DELETE_ENTITY removes a record and ignores unknown ids', () => {
+    const libSeed = makeLibrarySeed();
+    const s1 = reducer(libSeed, { type: 'DELETE_ENTITY', coll: 'elementTypes', id: 'rumor' });
+    expect(s1.elementTypes.rumor).toBeUndefined();
+    expect(Object.keys(s1.elementTypes)).toHaveLength(4);
+    expect(reducer(s1, { type: 'DELETE_ENTITY', coll: 'elementTypes', id: 'nope' })).toBe(s1);
+  });
+
+  it('new element categories can be added and elements reassigned on delete', () => {
+    let libState = makeLibrarySeed();
+    libState = reducer(libState, { type: 'ADD_ENTITY', coll: 'elementTypes', entity: { id: 'prophecy', label: 'Prophecy', color: '#3EC6D6' } });
+    expect(libState.elementTypes.prophecy.label).toBe('Prophecy');
+    // reassign a rumor to the fallback, then delete the category (UI flow)
+    libState = reducer(libState, { type: 'UPDATE_ENTITY', coll: 'elements', id: 'LIB-ELM-004', patch: { etype: 'prophecy' } });
+    libState = reducer(libState, { type: 'DELETE_ENTITY', coll: 'elementTypes', id: 'rumor' });
+    expect(libState.elements['LIB-ELM-004'].etype).toBe('prophecy');
+    expect(libState.elementTypes.rumor).toBeUndefined();
+  });
+});
+
 describe('scenario graph editing', () => {
   const newNode = { id: 'N-TEST', kind: 'story', title: 'New story beat', x: 100, y: 100, body: '', color: null, locationId: null, itemId: null, mechanicIds: [], sensorIds: [] };
 

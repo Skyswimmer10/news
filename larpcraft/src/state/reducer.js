@@ -86,6 +86,14 @@ export function reducer(state, action) {
       };
     }
 
+    case 'DELETE_ENTITY': {
+      const { coll, id } = action;
+      if (!state[coll]?.[id]) return state;
+      const next = { ...state[coll] };
+      delete next[id];
+      return { ...state, [coll]: next };
+    }
+
     // "Add new" buttons: insert a fresh entity into a collection.
     case 'ADD_ENTITY': {
       const { coll, entity } = action;

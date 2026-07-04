@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { useGame, useDispatch, useLibrary, useLibraryDispatch } from '../state/store.jsx';
 import { resolveNode, itemsAssignedToPlayer, sensorsAssignedToPlayer } from '../state/reducer.js';
 import { importItem, importLocation, importSensor, importStory, importPrimitive, importElement } from '../state/bridge.js';
-import { ELEMENT_TYPES } from '../data/seed.js';
 import { Chip, SectionLabel, BuildFlow, Pill, ENTITY_COLORS } from './bits.jsx';
 import ImageUploader from './ImageUploader.jsx';
 
@@ -455,9 +454,10 @@ function LibPrimitivePanel({ template }) {
 }
 
 function LibElementPanel({ template }) {
+  const lib = useLibrary();
   const libDispatch = useLibraryDispatch();
   const upd = (patch) => libDispatch({ type: 'UPDATE_ENTITY', coll: 'elements', id: template.id, patch });
-  const meta = ELEMENT_TYPES[template.etype] ?? { label: template.etype, color: '#8B92A6' };
+  const meta = lib.elementTypes[template.etype] ?? { label: template.etype, color: '#8B92A6' };
   return (
     <>
       <TemplateBadge />
@@ -470,7 +470,8 @@ function LibElementPanel({ template }) {
       <div className="isect">
         <SectionLabel>Category</SectionLabel>
         <select className="field-input" value={template.etype} onChange={(e) => upd({ etype: e.target.value })}>
-          {Object.entries(ELEMENT_TYPES).map(([key, m]) => <option key={key} value={key}>{m.label}</option>)}
+          {Object.values(lib.elementTypes).map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+          {!lib.elementTypes[template.etype] && <option value={template.etype}>{template.etype} (deleted)</option>}
         </select>
       </div>
       <TextField label="Text · the element itself" textarea value={template.text} onCommit={(v) => upd({ text: v })} />

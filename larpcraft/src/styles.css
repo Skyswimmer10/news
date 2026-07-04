@@ -112,6 +112,12 @@ input,select,textarea{font:inherit}
 .elemcard b{color:var(--ink);font-size:13px}
 .elemcard small{font-size:11.5px;line-height:1.5;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 .etag{font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase}
+.chip.cat{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+.chip.cat .x{display:none;color:inherit;font-size:13px;line-height:1;padding:0 1px;opacity:.75}
+.chip.cat:hover .x{display:inline}
+.chip.cat .x:hover{color:var(--bad);opacity:1}
+.chip.addcat{border-style:dashed;color:var(--faint)}
+.chip.addcat:hover{color:var(--ink);border-color:var(--brand)}
 
 /* Empty project states */
 .emptyview{flex:1;border-top:1px solid var(--line-soft);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;background:#161923;text-align:center;padding:40px}

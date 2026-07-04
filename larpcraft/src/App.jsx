@@ -17,18 +17,24 @@ const MANAGE_VIEWS = [
   { id: 'teams', label: 'Players & Teams', color: 'var(--c-mechanic)', comp: Teams, count: (p) => Object.keys(p.players).length },
 ];
 
+// The Library, grouped: physical templates, game mechanics, story content.
+const LIB_GROUPS = [
+  { id: 'physical', label: 'Physical', color: 'var(--c-item)', colls: ['items', 'locations', 'sensors'] },
+  { id: 'mechanics', label: 'Game Mechanics', color: 'var(--c-mechanic)', colls: ['mechanics'] },
+  { id: 'story', label: 'Story & Narrative', color: 'var(--c-narrative)', colls: ['primitives', 'elements', 'stories'] },
+];
+
 function Shell() {
   const proj = useGame();
   const lib = useLibrary();
   const dispatch = useDispatch();
   const libDispatch = useLibraryDispatch();
   const [view, setView] = useState('items');
+  const [libGroup, setLibGroup] = useState('physical');
   const [selection, setSelection] = useState(null);
 
   const all = [...BUILD_VIEWS, ...MANAGE_VIEWS];
-  const Active = view === 'library' ? Library : all.find((v) => v.id === view).comp;
-  const libCount = Object.keys(lib.items).length + Object.keys(lib.locations).length
-    + Object.keys(lib.mechanics).length + Object.keys(lib.sensors).length + Object.keys(lib.stories).length;
+  const ActiveView = view === 'library' ? null : all.find((v) => v.id === view).comp;
 
   const navBtn = (v) => (
     <button key={v.id} className={`nav${view === v.id ? ' on' : ''}`} onClick={() => setView(v.id)}>
@@ -45,14 +51,20 @@ function Shell() {
         <div className="navlab">Manage</div>
         {MANAGE_VIEWS.map(navBtn)}
         <div className="navlab">Library · master database</div>
-        <button className={`nav${view === 'library' ? ' on' : ''}`} onClick={() => setView('library')}>
-          <span className="sq" style={{ background: 'var(--brand)' }} />Library catalogue<span className="n">{libCount}</span>
-        </button>
+        {LIB_GROUPS.map((g) => (
+          <button key={g.id} className={`nav${view === 'library' && libGroup === g.id ? ' on' : ''}`}
+            onClick={() => { setView('library'); setLibGroup(g.id); }}>
+            <span className="sq" style={{ background: g.color }} />{g.label}
+            <span className="n">{g.colls.reduce((sum, c) => sum + Object.keys(lib[c]).length, 0)}</span>
+          </button>
+        ))}
         <div className="sidefoot">
           <button className="linkbtn" onClick={() => resetDemoData(libDispatch, dispatch)}>Reset demo data</button>
         </div>
       </div>
-      <Active selection={selection} onSelect={setSelection} />
+      {view === 'library'
+        ? <Library group={libGroup} selection={selection} onSelect={setSelection} />
+        : <ActiveView selection={selection} onSelect={setSelection} />}
       <Inspector selection={selection} onSelect={setSelection} />
     </div>
   );
