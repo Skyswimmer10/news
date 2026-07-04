@@ -30,7 +30,7 @@ export const CSV_SCHEMAS = {
     filename: 'items.csv',
     headers: ['id', 'name', 'type', 'buildStatus', 'availability', 'description', 'propNotes', 'loreNotes', 'locationId', 'mechanicIds', 'sensorReqs'],
     newId: (s) => genId(s.items, 'CHM-N-'),
-    blank: (id) => ({ id, name: 'New item', type: 'gadget', buildStatus: 'concept', availability: 'ready', description: '', propNotes: '', loreNotes: '', locationId: null, mechanicIds: [], sensorReqs: [], image: null, assignedTo: null }),
+    blank: (id) => ({ id, templateId: null, name: 'New item', type: 'gadget', buildStatus: 'concept', availability: 'ready', description: '', propNotes: '', loreNotes: '', locationId: null, mechanicIds: [], sensorReqs: [], image: null, assignedTo: null }),
     toRows: (s) => Object.values(s.items).map((i) => ({
       ...i,
       locationId: i.locationId ?? '',
@@ -64,7 +64,7 @@ export const CSV_SCHEMAS = {
     filename: 'locations.csv',
     headers: ['id', 'name', 'zone', 'notes', 'safety', 'sensorIds'],
     newId: (s) => genId(s.locations, 'LOC-N-'),
-    blank: (id) => ({ id, name: 'New location', zone: '', notes: '', safety: '', image: null, sensorIds: [] }),
+    blank: (id) => ({ id, templateId: null, name: 'New location', zone: '', notes: '', safety: '', image: null, sensorIds: [] }),
     toRows: (s) => Object.values(s.locations).map((l) => ({ ...l, sensorIds: l.sensorIds.join(';') })),
     fromRow: (row, s, warn) => ({
       name: row.name || 'Unnamed location',

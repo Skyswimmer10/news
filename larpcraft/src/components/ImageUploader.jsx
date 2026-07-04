@@ -16,9 +16,11 @@ function classify(file) {
 // Drag-and-drop uploader for the details panel. Accepts prop/location photos,
 // SVG diagrams and 3D render exports. On upload the file immediately becomes
 // the entity's primary thumbnail (gallery card / location reference image) —
-// pure state update, no refresh.
-export default function ImageUploader({ coll, entity }) {
-  const dispatch = useDispatch();
+// pure state update, no refresh. Pass dispatchOverride to target the library
+// store instead of the active project.
+export default function ImageUploader({ coll, entity, dispatchOverride }) {
+  const projDispatch = useDispatch();
+  const dispatch = dispatchOverride ?? projDispatch;
   const inputRef = useRef(null);
   const [drag, setDrag] = useState(false);
   const [error, setError] = useState(null);

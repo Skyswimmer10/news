@@ -38,11 +38,15 @@ export function toCsv(headers, rows) {
   return [headers.join(','), ...rows.map((r) => headers.map((h) => esc(r[h])).join(','))].join('\r\n');
 }
 
-export function downloadCsv(filename, text) {
-  const blob = new Blob([text], { type: 'text/csv;charset=utf-8' });
+export function downloadText(filename, text, mime = 'text/plain;charset=utf-8') {
+  const blob = new Blob([text], { type: mime });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = filename;
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
+
+export function downloadCsv(filename, text) {
+  downloadText(filename, text, 'text/csv;charset=utf-8');
 }

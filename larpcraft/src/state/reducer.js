@@ -100,6 +100,22 @@ export function reducer(state, action) {
       return { ...state, [coll]: { ...state[coll], ...entities } };
     }
 
+    // Library → project import: pre-built instances land in the game.
+    case 'IMPORT_FROM_LIBRARY': {
+      return {
+        ...state,
+        items: { ...state.items, ...(action.items || {}) },
+        locations: { ...state.locations, ...(action.locations || {}) },
+        sensors: { ...state.sensors, ...(action.sensors || {}) },
+        nodes: { ...state.nodes, ...(action.nodes || {}) },
+        edges: action.edges?.length ? [...state.edges, ...action.edges] : state.edges,
+      };
+    }
+
+    case 'RENAME_PROJECT': {
+      return { ...state, meta: { ...state.meta, name: action.name } };
+    }
+
     // ---- scenario graph editing ----
     case 'ADD_NODE': {
       const n = action.node;
@@ -150,15 +166,17 @@ export const availableItems = (s) => itemList(s).filter((i) => i.availability ==
 export const playersOfTeam = (s, teamId) =>
   Object.values(s.players).filter((p) => p.teamId === teamId);
 
-// The cross-reference at the heart of the app: a flow node resolves to live records.
-export const resolveNode = (s, nodeId) => {
+// The cross-reference at the heart of the app: a flow node resolves to live
+// records — item/location/sensor instances from the project, rules from the
+// library master database.
+export const resolveNode = (s, lib, nodeId) => {
   const node = s.nodes[nodeId];
   if (!node) return null;
   return {
     node,
     item: node.itemId ? s.items[node.itemId] : null,
     location: node.locationId ? s.locations[node.locationId] : null,
-    mechanics: (node.mechanicIds || []).map((id) => s.mechanics[id]).filter(Boolean),
+    mechanics: (node.mechanicIds || []).map((id) => lib.mechanics[id]).filter(Boolean),
     sensors: (node.sensorIds || []).map((id) => s.sensors[id]).filter(Boolean),
   };
 };

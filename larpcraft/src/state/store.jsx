@@ -1,43 +1,65 @@
 import React, { createContext, useContext, useEffect, useReducer, useState } from 'react';
 import { reducer } from './reducer.js';
-import { makeSeed, SEED_REV } from '../data/seed.js';
-import { loadProject, saveProjectDebounced, clearProject } from './storage.js';
+import { makeLibrarySeed, makeProjectSeed, makeEmptyProject, LIB_REV, SEED_REV } from '../data/seed.js';
+import { loadKey, saveKeyDebounced, clearKey } from './storage.js';
 
-const StateCtx = createContext(null);
-const DispatchCtx = createContext(null);
+// Two distinct stores:
+//  - Library: the persistent master database (templates). Survives across games.
+//  - Project: the currently open game (instances, quest graph, teams).
+// Each has its own context pair and its own IndexedDB slot.
+
+const LIB_KEY = 'larpcraft:library';
+const PROJ_KEY = 'larpcraft:activeProject';
+
+const LibStateCtx = createContext(null);
+const LibDispatchCtx = createContext(null);
+const ProjStateCtx = createContext(null);
+const ProjDispatchCtx = createContext(null);
 
 export function StoreProvider({ children }) {
-  const [state, dispatch] = useReducer(reducer, null);
+  const [lib, libDispatch] = useReducer(reducer, null);
+  const [proj, projDispatch] = useReducer(reducer, null);
   const [booted, setBooted] = useState(false);
 
   useEffect(() => {
     let alive = true;
-    loadProject().then((saved) => {
+    Promise.all([loadKey(LIB_KEY), loadKey(PROJ_KEY)]).then(([savedLib, savedProj]) => {
       if (!alive) return;
-      // Older saves (schema changed) fall back to fresh seed.
-      const usable = saved && saved.rev === SEED_REV ? saved : makeSeed();
-      dispatch({ type: 'RESET', seed: usable });
+      libDispatch({ type: 'RESET', seed: savedLib && savedLib.rev === LIB_REV ? savedLib : makeLibrarySeed() });
+      projDispatch({ type: 'RESET', seed: savedProj && savedProj.rev === SEED_REV ? savedProj : makeProjectSeed() });
       setBooted(true);
     });
     return () => { alive = false; };
   }, []);
 
-  useEffect(() => {
-    if (booted && state) saveProjectDebounced(state);
-  }, [state, booted]);
+  useEffect(() => { if (booted && lib) saveKeyDebounced(LIB_KEY, lib); }, [lib, booted]);
+  useEffect(() => { if (booted && proj) saveKeyDebounced(PROJ_KEY, proj); }, [proj, booted]);
 
-  if (!booted || !state) return <div className="boot">Loading project…</div>;
+  if (!booted || !lib || !proj) return <div className="boot">Loading library &amp; game…</div>;
   return (
-    <StateCtx.Provider value={state}>
-      <DispatchCtx.Provider value={dispatch}>{children}</DispatchCtx.Provider>
-    </StateCtx.Provider>
+    <LibStateCtx.Provider value={lib}>
+      <LibDispatchCtx.Provider value={libDispatch}>
+        <ProjStateCtx.Provider value={proj}>
+          <ProjDispatchCtx.Provider value={projDispatch}>{children}</ProjDispatchCtx.Provider>
+        </ProjStateCtx.Provider>
+      </LibDispatchCtx.Provider>
+    </LibStateCtx.Provider>
   );
 }
 
-export const useGame = () => useContext(StateCtx);
-export const useDispatch = () => useContext(DispatchCtx);
+// Project (active game) hooks — the names most views already use.
+export const useGame = () => useContext(ProjStateCtx);
+export const useDispatch = () => useContext(ProjDispatchCtx);
+// Library (master database) hooks.
+export const useLibrary = () => useContext(LibStateCtx);
+export const useLibraryDispatch = () => useContext(LibDispatchCtx);
 
-export async function resetDemoData(dispatch) {
-  await clearProject();
-  dispatch({ type: 'RESET', seed: makeSeed() });
+export function newGame(projDispatch, name = 'Untitled game') {
+  projDispatch({ type: 'RESET', seed: makeEmptyProject(name) });
+}
+
+export async function resetDemoData(libDispatch, projDispatch) {
+  await Promise.all([clearKey(LIB_KEY), clearKey(PROJ_KEY)]);
+  libDispatch({ type: 'RESET', seed: makeLibrarySeed() });
+  projDispatch({ type: 'RESET', seed: makeProjectSeed() });
 }

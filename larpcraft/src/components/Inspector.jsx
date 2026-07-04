@@ -1,6 +1,7 @@
-import React from 'react';
-import { useGame, useDispatch } from '../state/store.jsx';
+import React, { useState } from 'react';
+import { useGame, useDispatch, useLibrary, useLibraryDispatch } from '../state/store.jsx';
 import { resolveNode, itemsAssignedToPlayer, sensorsAssignedToPlayer } from '../state/reducer.js';
+import { importItem, importLocation, importSensor, importStory } from '../state/bridge.js';
 import { Chip, SectionLabel, BuildFlow, Pill, ENTITY_COLORS } from './bits.jsx';
 import ImageUploader from './ImageUploader.jsx';
 
@@ -23,9 +24,42 @@ function TextField({ label, value, onCommit, textarea, placeholder }) {
   );
 }
 
-// ---- Item record: the editable single source of truth for a physical prop ----
+// Visual distinction between the two data worlds.
+function InstanceBadge({ templateId }) {
+  return (
+    <div className="scopebadge instance">
+      Game instance{templateId && <> of <span className="mono">{templateId}</span></>} — edits affect only this game.
+    </div>
+  );
+}
+function TemplateBadge() {
+  return <div className="scopebadge template">Master template — edits update the blueprint for future games.</div>;
+}
+
+// "Import to Active Game" with inline confirmation of the created instance id.
+function ImportButton({ build, label = 'Import to Active Game' }) {
+  const proj = useGame();
+  const lib = useLibrary();
+  const dispatch = useDispatch();
+  const [done, setDone] = useState(null);
+  return (
+    <div className="isect">
+      <button className="btn primary wide" onClick={() => {
+        const result = build(lib, proj);
+        if (!result) return;
+        dispatch({ type: 'IMPORT_FROM_LIBRARY', ...result });
+        setDone(result.createdId);
+        setTimeout(() => setDone(null), 5000);
+      }}>{done ? `Imported ✓ ${done}` : `⤓ ${label}`}</button>
+      <div className="hint">Duplicates this template into <b>{proj.meta.name}</b> with a new instance ID.</div>
+    </div>
+  );
+}
+
+// ---- Item INSTANCE: the editable record for a physical prop in this game ----
 function ItemPanel({ item, viaNode }) {
   const s = useGame();
+  const lib = useLibrary();
   const dispatch = useDispatch();
   const upd = (patch) => dispatch({ type: 'UPDATE_ENTITY', coll: 'items', id: item.id, patch });
   const location = item.locationId ? s.locations[item.locationId] : null;
@@ -42,6 +76,7 @@ function ItemPanel({ item, viaNode }) {
             onClick={() => dispatch({ type: 'UPDATE_ENTITY', coll: 'nodes', id: viaNode.id, patch: { itemId: null } })}>Unlink</button>
         </div>
       )}
+      <InstanceBadge templateId={item.templateId} />
       <div className="ihead">
         <ImageUploader coll="items" entity={item} />
         <div className="ihrow">
@@ -85,23 +120,23 @@ function ItemPanel({ item, viaNode }) {
       )}
 
       <div className="isect">
-        <SectionLabel>Linked mechanics</SectionLabel>
+        <SectionLabel>Linked mechanics · from Library</SectionLabel>
         <div className="chips">
-          {item.mechanicIds.map((id) => s.mechanics[id] && (
-            <Chip key={id} color={ENTITY_COLORS.mechanic} title={s.mechanics[id].summary}
+          {item.mechanicIds.map((id) => lib.mechanics[id] && (
+            <Chip key={id} color={ENTITY_COLORS.mechanic} title={lib.mechanics[id].summary}
               onRemove={() => upd({ mechanicIds: item.mechanicIds.filter((m) => m !== id) })}>
-              {s.mechanics[id].name}
+              {lib.mechanics[id].name}
             </Chip>
           ))}
           <select className="chip-add" value="" onChange={(e) => e.target.value && upd({ mechanicIds: [...item.mechanicIds, e.target.value] })}>
             <option value="">+ link…</option>
-            {Object.values(s.mechanics).filter((m) => !item.mechanicIds.includes(m.id)).map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+            {Object.values(lib.mechanics).filter((m) => !item.mechanicIds.includes(m.id)).map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
           </select>
         </div>
       </div>
 
       <div className="isect">
-        <SectionLabel>Sensor requirements · hardware</SectionLabel>
+        <SectionLabel>Sensor requirements · hardware in this game</SectionLabel>
         <div className="senslist">
           {item.sensorReqs.map(({ sensorId, note }) => {
             const sen = s.sensors[sensorId];
@@ -109,7 +144,7 @@ function ItemPanel({ item, viaNode }) {
             return (
               <div className="sensrow" key={sensorId}>
                 <span className="sq" style={{ background: ENTITY_COLORS.sensor }} />
-                <div><b>{sen.id}</b> <span className="dim">{sen.kind}</span>{note && <small>{note}</small>}</div>
+                <div><b>{sen.id}</b> <span className="dim">{sen.kind} · {sen.battery}%</span>{note && <small>{note}</small>}</div>
                 <span className={`sdot ${sen.status}`} title={sen.status} />
                 <button className="x" onClick={() => dispatch({ type: 'REMOVE_SENSOR_REQ', itemId: item.id, sensorId })} aria-label="Remove requirement">×</button>
               </div>
@@ -127,7 +162,7 @@ function ItemPanel({ item, viaNode }) {
   );
 }
 
-// ---- Location record with reference-image upload ----
+// ---- Location INSTANCE ----
 function LocationPanel({ location, viaNode }) {
   const s = useGame();
   const dispatch = useDispatch();
@@ -140,12 +175,14 @@ function LocationPanel({ location, viaNode }) {
             onClick={() => dispatch({ type: 'UPDATE_ENTITY', coll: 'nodes', id: viaNode.id, patch: { locationId: null } })}>Unlink</button>
         </div>
       )}
+      <InstanceBadge templateId={location.templateId} />
       <div className="ihead">
         <ImageUploader coll="locations" entity={location} />
         <div className="ihrow"><h3>{location.name}</h3></div>
-        <div className="sub mono">{location.id} · {location.zone}</div>
+        <div className="sub mono">{location.id}{location.zone && ` · ${location.zone}`}</div>
       </div>
       <TextField label="Location name" value={location.name} onCommit={(v) => upd({ name: v })} />
+      <TextField label="Zone / act" value={location.zone} onCommit={(v) => upd({ zone: v })} />
       <TextField label="Notes" textarea value={location.notes} onCommit={(v) => upd({ notes: v })} />
       <TextField label="Safety · crew only" textarea value={location.safety} onCommit={(v) => upd({ safety: v })} />
       <div className="isect">
@@ -201,8 +238,6 @@ function PlayerPanel({ player }) {
 
 const NODE_SWATCHES = ['#5CA8F5', '#43BF87', '#E0A23C', '#E86464', '#A87BF0', '#3EC6D6', '#E8D25C', '#F08CB4'];
 
-// Editable panel for a plain node (no linked record yet): rename it, write
-// notes, pick its top color, or link it to an item / location record.
 function NodePanel({ node }) {
   const s = useGame();
   const dispatch = useDispatch();
@@ -227,7 +262,7 @@ function NodePanel({ node }) {
         </div>
       </div>
       <div className="isect">
-        <SectionLabel>Link to a record</SectionLabel>
+        <SectionLabel>Link to a record in this game</SectionLabel>
         <select className="field-input" value="" onChange={(e) => {
           const v = e.target.value;
           if (v.startsWith('item:')) upd({ itemId: v.slice(5) });
@@ -256,25 +291,158 @@ function NodePanel({ node }) {
   );
 }
 
-// The shared right-hand details panel. Selecting a flow node that references an
-// item resolves it against the Item Database state and shows the live record.
+// ---- Library TEMPLATE panels: edit the master blueprint, import instances ----
+function LibItemPanel({ template }) {
+  const lib = useLibrary();
+  const libDispatch = useLibraryDispatch();
+  const upd = (patch) => libDispatch({ type: 'UPDATE_ENTITY', coll: 'items', id: template.id, patch });
+  return (
+    <>
+      <TemplateBadge />
+      <div className="ihead">
+        <ImageUploader coll="items" entity={template} dispatchOverride={libDispatch} />
+        <div className="ihrow"><h3>{template.name}</h3></div>
+        <div className="sub mono">{template.id} · {template.type} · template</div>
+      </div>
+      <ImportButton build={(l, p) => importItem(l, p, template.id)} />
+      <TextField label="Name" value={template.name} onCommit={(v) => upd({ name: v })} />
+      <TextField label="Default lore / description" textarea value={template.description} onCommit={(v) => upd({ description: v })} />
+      <TextField label="Base construction · crew only" textarea value={template.propNotes} onCommit={(v) => upd({ propNotes: v })} />
+      <div className="isect">
+        <SectionLabel>Default mechanics</SectionLabel>
+        <div className="chips">
+          {template.mechanicIds.map((id) => lib.mechanics[id] && (
+            <Chip key={id} color={ENTITY_COLORS.mechanic}
+              onRemove={() => upd({ mechanicIds: template.mechanicIds.filter((m) => m !== id) })}>
+              {lib.mechanics[id].name}
+            </Chip>
+          ))}
+          <select className="chip-add" value="" onChange={(e) => e.target.value && upd({ mechanicIds: [...template.mechanicIds, e.target.value] })}>
+            <option value="">+ link…</option>
+            {Object.values(lib.mechanics).filter((m) => !template.mechanicIds.includes(m.id)).map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+          </select>
+        </div>
+      </div>
+      <div className="isect">
+        <SectionLabel>Required hardware (templates)</SectionLabel>
+        <div className="chips">
+          {template.sensorReqs.map(({ sensorId, note }) => lib.sensors[sensorId] && (
+            <Chip key={sensorId} color={ENTITY_COLORS.sensor} title={note}
+              onRemove={() => upd({ sensorReqs: template.sensorReqs.filter((r) => r.sensorId !== sensorId) })}>
+              {lib.sensors[sensorId].kind}
+            </Chip>
+          ))}
+          <select className="chip-add" value="" onChange={(e) => e.target.value && upd({ sensorReqs: [...template.sensorReqs, { sensorId: e.target.value, note: '' }] })}>
+            <option value="">+ require…</option>
+            {Object.values(lib.sensors).filter((x) => !template.sensorReqs.some((r) => r.sensorId === x.id)).map((x) => <option key={x.id} value={x.id}>{x.kind}</option>)}
+          </select>
+        </div>
+        <div className="hint">Importing this item also imports its hardware into the game.</div>
+      </div>
+    </>
+  );
+}
+
+function LibLocationPanel({ template }) {
+  const libDispatch = useLibraryDispatch();
+  const upd = (patch) => libDispatch({ type: 'UPDATE_ENTITY', coll: 'locations', id: template.id, patch });
+  return (
+    <>
+      <TemplateBadge />
+      <div className="ihead">
+        <ImageUploader coll="locations" entity={template} dispatchOverride={libDispatch} />
+        <div className="ihrow"><h3>{template.name}</h3></div>
+        <div className="sub mono">{template.id} · template</div>
+      </div>
+      <ImportButton build={(l, p) => importLocation(l, p, template.id)} />
+      <TextField label="Name" value={template.name} onCommit={(v) => upd({ name: v })} />
+      <TextField label="Notes" textarea value={template.notes} onCommit={(v) => upd({ notes: v })} />
+      <TextField label="Safety checklist" textarea value={template.safety} onCommit={(v) => upd({ safety: v })} />
+    </>
+  );
+}
+
+function LibMechanicPanel({ template }) {
+  const libDispatch = useLibraryDispatch();
+  const upd = (patch) => libDispatch({ type: 'UPDATE_ENTITY', coll: 'mechanics', id: template.id, patch });
+  return (
+    <>
+      <TemplateBadge />
+      <div className="ihead">
+        <div className="ihrow"><span className="sq big" style={{ background: ENTITY_COLORS.mechanic }} /><h3>{template.name}</h3></div>
+        <div className="sub mono">{template.id} · rule / mechanic</div>
+      </div>
+      <TextField label="Name" value={template.name} onCommit={(v) => upd({ name: v })} />
+      <TextField label="How it plays" textarea value={template.summary} onCommit={(v) => upd({ summary: v })} />
+      <div className="isect"><div className="hint">Mechanics are referenced by games directly — no instance copy needed.</div></div>
+    </>
+  );
+}
+
+function LibSensorPanel({ template }) {
+  const libDispatch = useLibraryDispatch();
+  const upd = (patch) => libDispatch({ type: 'UPDATE_ENTITY', coll: 'sensors', id: template.id, patch });
+  return (
+    <>
+      <TemplateBadge />
+      <div className="ihead">
+        <div className="ihrow"><span className="sq big" style={{ background: ENTITY_COLORS.sensor }} /><h3>{template.kind}</h3></div>
+        <div className="sub mono">{template.id} · hardware template</div>
+      </div>
+      <ImportButton build={(l, p) => importSensor(l, p, template.id)} label="Import hardware unit" />
+      <TextField label="Kind" value={template.kind} onCommit={(v) => upd({ kind: v })} />
+      <TextField label="Build / model notes" textarea value={template.label} onCommit={(v) => upd({ label: v })} />
+      <div className="isect"><div className="hint">Instances track per-game state: battery, placement, assignment, online status.</div></div>
+    </>
+  );
+}
+
+function LibStoryPanel({ template }) {
+  const libDispatch = useLibraryDispatch();
+  const upd = (patch) => libDispatch({ type: 'UPDATE_ENTITY', coll: 'stories', id: template.id, patch });
+  return (
+    <>
+      <TemplateBadge />
+      <div className="ihead">
+        <div className="ihrow"><span className="sq big" style={{ background: ENTITY_COLORS.story }} /><h3>{template.name}</h3></div>
+        <div className="sub mono">{template.id} · story structure · {template.beats.length} beats</div>
+      </div>
+      <ImportButton build={(l, p) => importStory(l, p, template.id)} label="Spawn beats on the flow canvas" />
+      <TextField label="Name" value={template.name} onCommit={(v) => upd({ name: v })} />
+      <TextField label="Summary" textarea value={template.summary} onCommit={(v) => upd({ summary: v })} />
+      <div className="isect">
+        <SectionLabel>Beats</SectionLabel>
+        <div className="chips">
+          {template.beats.map((b, i) => <Chip key={i} color={ENTITY_COLORS[b.kind]}>{i + 1}. {b.title}</Chip>)}
+        </div>
+      </div>
+    </>
+  );
+}
+
+// The shared right-hand details panel. Project selections show game instances;
+// lib-* selections show master templates with the import bridge.
 export default function Inspector({ selection, onSelect }) {
   const s = useGame();
+  const lib = useLibrary();
   if (!selection) return <aside className="inspector"><div className="empty">Select an item, node, location or player to inspect it.</div></aside>;
 
   let body = null;
-  if (selection.kind === 'item' && s.items[selection.id]) {
-    body = <ItemPanel item={s.items[selection.id]} />;
-  } else if (selection.kind === 'location' && s.locations[selection.id]) {
-    body = <LocationPanel location={s.locations[selection.id]} />;
-  } else if (selection.kind === 'player' && s.players[selection.id]) {
-    body = <PlayerPanel player={s.players[selection.id]} />;
-  } else if (selection.kind === 'node') {
-    const r = resolveNode(s, selection.id);
+  const { kind, id } = selection;
+  if (kind === 'item' && s.items[id]) body = <ItemPanel item={s.items[id]} />;
+  else if (kind === 'location' && s.locations[id]) body = <LocationPanel location={s.locations[id]} />;
+  else if (kind === 'player' && s.players[id]) body = <PlayerPanel player={s.players[id]} />;
+  else if (kind === 'lib-items' && lib.items[id]) body = <LibItemPanel template={lib.items[id]} />;
+  else if (kind === 'lib-locations' && lib.locations[id]) body = <LibLocationPanel template={lib.locations[id]} />;
+  else if (kind === 'lib-mechanics' && lib.mechanics[id]) body = <LibMechanicPanel template={lib.mechanics[id]} />;
+  else if (kind === 'lib-sensors' && lib.sensors[id]) body = <LibSensorPanel template={lib.sensors[id]} />;
+  else if (kind === 'lib-stories' && lib.stories[id]) body = <LibStoryPanel template={lib.stories[id]} />;
+  else if (kind === 'node') {
+    const r = resolveNode(s, lib, id);
     if (!r) body = null;
     else if (r.item) body = <ItemPanel item={r.item} viaNode={r.node} />;
     else if (r.location) body = <LocationPanel location={r.location} viaNode={r.node} />;
     else body = <NodePanel node={r.node} />;
   }
-  return <aside className="inspector" key={`${selection.kind}:${selection.id}`}>{body ?? <div className="empty">Record not found.</div>}</aside>;
+  return <aside className="inspector" key={`${kind}:${id}`}>{body ?? <div className="empty">Record not found in this game.</div>}</aside>;
 }

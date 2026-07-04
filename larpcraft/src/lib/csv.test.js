@@ -2,7 +2,9 @@ import { describe, it, expect } from 'vitest';
 import { parseCsv, toCsv } from './csv.js';
 import { CSV_SCHEMAS } from '../data/csvSchemas.js';
 import { reducer } from '../state/reducer.js';
-import { makeSeed } from '../data/seed.js';
+import { makeProjectSeed, makeLibrarySeed } from '../data/seed.js';
+
+const makeSeed = () => ({ ...makeProjectSeed(), mechanics: makeLibrarySeed().mechanics });
 
 describe('csv core', () => {
   it('round-trips quoted fields with commas, quotes and newlines', () => {
@@ -27,9 +29,9 @@ describe('items csv schema', () => {
   it('export → import round-trips mechanics and sensor requirements', () => {
     const s = makeSeed();
     const row = CSV_SCHEMAS.items.toRows(s).find((r) => r.id === 'CHM-A-007');
-    expect(row.mechanicIds).toBe('MECH-DECRYPT;MECH-COMMS');
+    expect(row.mechanicIds).toBe('LIB-MECH-DECRYPT;LIB-MECH-COMMS');
     const partial = CSV_SCHEMAS.items.fromRow(row, s, () => {});
-    expect(partial.mechanicIds).toEqual(['MECH-DECRYPT', 'MECH-COMMS']);
+    expect(partial.mechanicIds).toEqual(['LIB-MECH-DECRYPT', 'LIB-MECH-COMMS']);
     expect(partial.sensorReqs).toEqual(s.items['CHM-A-007'].sensorReqs);
   });
 
@@ -37,14 +39,14 @@ describe('items csv schema', () => {
     const s = makeSeed();
     const warnings = [];
     const partial = CSV_SCHEMAS.items.fromRow(
-      { id: 'X-1', name: 'Mystery box', type: 'weapon', buildStatus: 'done', availability: '', locationId: 'LOC-NOPE', mechanicIds: 'MECH-LOCK;MECH-FAKE', sensorReqs: 'RFID-07:note here;GHOST-1' },
+      { id: 'X-1', name: 'Mystery box', type: 'weapon', buildStatus: 'done', availability: '', locationId: 'LOC-NOPE', mechanicIds: 'LIB-MECH-LOCK;MECH-FAKE', sensorReqs: 'RFID-07:note here;GHOST-1' },
       s, (m) => warnings.push(m),
     );
     expect(partial.type).toBe('gadget');
     expect(partial.buildStatus).toBe('concept');
     expect(partial.availability).toBe('ready');
     expect(partial.locationId).toBeNull();
-    expect(partial.mechanicIds).toEqual(['MECH-LOCK']);
+    expect(partial.mechanicIds).toEqual(['LIB-MECH-LOCK']);
     expect(partial.sensorReqs).toEqual([{ sensorId: 'RFID-07', note: 'note here' }]);
     expect(warnings.length).toBeGreaterThanOrEqual(4);
   });

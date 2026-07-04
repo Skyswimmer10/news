@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { useGame, useDispatch } from '../state/store.jsx';
 import { itemList } from '../state/reducer.js';
-import { Thumb, Pill, ENTITY_COLORS } from '../components/bits.jsx';
+import { Thumb, Pill, ENTITY_COLORS, AVAILABILITY } from '../components/bits.jsx';
 import CsvButtons from '../components/CsvButtons.jsx';
+import LibraryBrowser from '../components/LibraryBrowser.jsx';
 import { CSV_SCHEMAS } from '../data/csvSchemas.js';
 
 const TYPE_TAGS = { artifact: 'Artifact', gadget: 'Gadget', consumable: 'Consumable' };
@@ -13,6 +14,7 @@ export default function ItemDatabase({ selection, onSelect }) {
   const [view, setView] = useState('gallery');
   const [filter, setFilter] = useState('all');
   const [q, setQ] = useState('');
+  const [browsing, setBrowsing] = useState(false);
 
   const addNew = () => {
     const id = CSV_SCHEMAS.items.newId(s);
@@ -26,16 +28,28 @@ export default function ItemDatabase({ selection, onSelect }) {
   );
   const selId = selection?.kind === 'item' ? selection.id : null;
   const pick = (id) => onSelect({ kind: 'item', id });
+  const empty = itemList(s).length === 0;
+
+  // Instance status line for visual distinction from library templates.
+  const statusLine = (i) => {
+    if (i.assignedTo) {
+      const who = i.assignedTo.playerId ? s.players[i.assignedTo.playerId]?.name : s.teams[i.assignedTo.teamId]?.name;
+      return `Assigned to ${who ?? '?'}`;
+    }
+    if (i.availability === 'deployed' && i.locationId) return `Deployed · ${s.locations[i.locationId]?.name ?? ''}`;
+    return AVAILABILITY[i.availability]?.label ?? i.availability;
+  };
 
   return (
     <div className="main">
       <div className="mhead">
         <div>
-          <div className="crumb">Operation Chimera / <b>Items &amp; Gadgets</b></div>
+          <div className="crumb">{s.meta.name} / <b>Items &amp; Gadgets</b> · game instances</div>
           <h2>Item Database</h2>
         </div>
         <div className="right">
           <CsvButtons coll="items" />
+          <button className="btn" onClick={() => setBrowsing(true)}>⤓ Browse Library</button>
           <button className="btn primary" onClick={addNew}>+ New item</button>
         </div>
       </div>
@@ -52,7 +66,16 @@ export default function ItemDatabase({ selection, onSelect }) {
         </div>
       </div>
 
-      {view === 'gallery' ? (
+      {empty ? (
+        <div className="emptyview">
+          <h3>No items in this game yet</h3>
+          <p>Bring in props from your master database, or build one from scratch.</p>
+          <div className="chips">
+            <button className="btn primary" onClick={() => setBrowsing(true)}>⤓ Browse Library</button>
+            <button className="btn" onClick={addNew}>+ New item</button>
+          </div>
+        </div>
+      ) : view === 'gallery' ? (
         <div className="gallery">
           {items.map((i) => (
             <figure key={i.id} className={`card${selId === i.id ? ' sel' : ''}`} onClick={() => pick(i.id)}>
@@ -60,6 +83,7 @@ export default function ItemDatabase({ selection, onSelect }) {
               <figcaption>
                 <b>{i.name}</b>
                 <span className="tag" style={{ color: ENTITY_COLORS[i.type] }}>{TYPE_TAGS[i.type]}</span>
+                <span className="deploy">{statusLine(i)}</span>
               </figcaption>
               <span className={`st st-${i.availability}`} title={i.availability} />
             </figure>
@@ -69,7 +93,7 @@ export default function ItemDatabase({ selection, onSelect }) {
         <div className="gridwrap">
           <table>
             <thead>
-              <tr><th>Item name</th><th>Type</th><th>Build</th><th>Availability</th><th>Issued to</th><th>Location</th><th>Mechanics</th><th>Sensors</th><th>Tag ID</th></tr>
+              <tr><th>Item name</th><th>Type</th><th>Build</th><th>Availability</th><th>Issued to</th><th>Location</th><th>Template</th><th>Sensors</th><th>Instance ID</th></tr>
             </thead>
             <tbody>
               {items.map((i) => {
@@ -82,7 +106,7 @@ export default function ItemDatabase({ selection, onSelect }) {
                     <td><Pill availability={i.availability} /></td>
                     <td>{holder}</td>
                     <td>{i.locationId ? s.locations[i.locationId]?.name : '—'}</td>
-                    <td>{i.mechanicIds.map((m) => s.mechanics[m]?.name).join(', ') || '—'}</td>
+                    <td className="mono">{i.templateId ?? '—'}</td>
                     <td className="mono">{i.sensorReqs.map((r) => r.sensorId).join(', ') || '—'}</td>
                     <td className="mono">{i.id}</td>
                   </tr>
@@ -92,7 +116,9 @@ export default function ItemDatabase({ selection, onSelect }) {
           </table>
         </div>
       )}
-      <div className="statusbar"><span><b>{items.length}</b> items shown</span><span>Edits save locally · IndexedDB</span></div>
+      <div className="statusbar"><span><b>{items.length}</b> instances shown</span><span>Edits here affect only <b>{s.meta.name}</b></span></div>
+      {browsing && <LibraryBrowser coll="items" onClose={() => setBrowsing(false)}
+        onImported={(id) => { setBrowsing(false); onSelect({ kind: 'item', id }); }} />}
     </div>
   );
 }

@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { reducer, resolveNode, itemsAssignedToTeam, availableItems } from './reducer.js';
-import { makeSeed } from '../data/seed.js';
+import { makeProjectSeed, makeLibrarySeed } from '../data/seed.js';
 
-const seed = () => makeSeed();
+const seed = () => makeProjectSeed();
+const lib = makeLibrarySeed();
 
 describe('assignment logic', () => {
   it('assigning an item to a player flips availability to in-use', () => {
@@ -36,16 +37,16 @@ describe('assignment logic', () => {
 describe('cross-referencing', () => {
   it('a flow node resolves to the live item record', () => {
     const s = seed();
-    const r = resolveNode(s, 'N-KEY');
+    const r = resolveNode(s, lib, 'N-KEY');
     expect(r.item.id).toBe('CHM-A-004');
-    expect(r.mechanics.map((m) => m.id)).toContain('MECH-LOCK');
+    expect(r.mechanics.map((m) => m.id)).toContain('LIB-MECH-LOCK');
     expect(r.sensors.map((x) => x.id)).toContain('RFID-07');
   });
 
   it('edits made via the inspector are visible through node resolution', () => {
     let s = seed();
     s = reducer(s, { type: 'UPDATE_ENTITY', coll: 'items', id: 'CHM-A-004', patch: { buildStatus: 'packed', name: 'Cipher-Key Mk2' } });
-    const r = resolveNode(s, 'N-KEY');
+    const r = resolveNode(s, lib, 'N-KEY');
     expect(r.item.buildStatus).toBe('packed');
     expect(r.item.name).toBe('Cipher-Key Mk2');
   });

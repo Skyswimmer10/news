@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { useGame, useDispatch } from '../state/store.jsx';
+import { useGame, useDispatch, useLibrary } from '../state/store.jsx';
 import { CSV_SCHEMAS } from '../data/csvSchemas.js';
 import { toCsv, parseCsv, downloadCsv } from '../lib/csv.js';
 
@@ -7,7 +7,11 @@ import { toCsv, parseCsv, downloadCsv } from '../lib/csv.js';
 // existing id update that record, new ids create records; bad rows are
 // skipped with a warning (details in the browser console).
 export default function CsvButtons({ coll }) {
-  const s = useGame();
+  const proj = useGame();
+  const lib = useLibrary();
+  // Schemas validate references against a merged view: instances (locations,
+  // sensors) come from the active game, rules & mechanics from the library.
+  const s = { ...proj, mechanics: lib.mechanics };
   const dispatch = useDispatch();
   const fileRef = useRef(null);
   const [msg, setMsg] = useState(null);

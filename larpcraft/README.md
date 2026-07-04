@@ -12,10 +12,25 @@ npm run build    # static build in dist/
 
 ## Architecture
 
-- **One global store** (`src/state/store.jsx`): React Context + `useReducer`. Every
-  entity (items, locations, mechanics, sensors, flow nodes, teams, players) exists
-  exactly once; all views render from the same state, so an edit anywhere shows up
-  everywhere on the next render.
+- **Two distinct stores** (`src/state/store.jsx`), each its own context pair and
+  IndexedDB slot:
+  - **Library** — the persistent master database: item / location / sensor
+    *templates*, rules & mechanics, story structures. Ids are `LIB-*`. Editing a
+    template updates the blueprint for future games only.
+  - **Active Project** — the currently open game: *instances* imported from the
+    Library (with `templateId` back-references and game state: build status,
+    availability, placement, assignment, sensor battery), plus the quest node
+    graph, teams and players. Ids are `<prefix>-*` (e.g. `CHM-ITM-001`).
+- **Project lifecycle** (`ProjectMenu.jsx`): File → New / Open / Save / Rename /
+  Close game. Save serializes the ActiveProjectState to JSON; Open loads it back.
+  New Game empties Build & Manage while the Library stays fully populated.
+- **Import bridge** (`src/state/bridge.js`): "Import to Active Game" on any
+  Library detail panel, or "Browse Library" inside Build views. Importing
+  duplicates the master record under a fresh instance id and cascades required
+  sensor hardware (reusing an existing instance of the same template if the game
+  already has one). Story structures spawn chained nodes on the flow canvas.
+- Within each store: React Context + `useReducer`; every entity exists exactly
+  once, so an edit anywhere shows up everywhere on the next render.
 - **Pure reducer** (`src/state/reducer.js`): all transitions are plain functions,
   covered by `reducer.test.js`. Key rules:
   - `ASSIGN_ITEM` (Teams screen "issue" dropdown) → item `availability: 'in-use'`
