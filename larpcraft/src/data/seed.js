@@ -12,7 +12,15 @@
 //      sensor battery) · edits affect only this game
 
 export const LIB_REV = 4;
-export const SEED_REV = 4;
+export const SEED_REV = 5;
+
+// Location map stage: coordinates for markers/arrows live in a fixed 160×90
+// space (16:9) so they stay put on any screen size, over either base layer
+// (uploaded schematic image or OpenStreetMap for outdoor sites).
+export const STAGE_W = 160;
+export const STAGE_H = 90;
+export const DEFAULT_OSM = { lat: 56.9496, lon: 24.1052, zoom: 16 };
+export const locationMapDefaults = () => ({ mapKind: 'schematic', osm: { ...DEFAULT_OSM }, markers: [], arrows: [] });
 
 // Default categories for single Narrative Elements. These seed the editable
 // lib.elementTypes collection — users can add and delete categories at will.
@@ -176,10 +184,34 @@ export function makeProjectSeed() {
     },
 
     locations: {
-      'LOC-S7': { id: 'LOC-S7', templateId: 'LIB-LOC-001', name: 'Sector 7 Warehouse', zone: 'Act 1', notes: 'Main quest area. Two patrol routes, locker corridor, marked safety zone.', safety: 'Fire exits east + west. No running on the mezzanine.', image: null, sensorIds: ['RFID-07', 'NFC-03', 'MOT-04'] },
-      'LOC-S8': { id: 'LOC-S8', templateId: 'LIB-LOC-002', name: 'Sector 8 Gate', zone: 'Act 2', notes: 'Locked until quest flag key_obtained.', safety: 'Gate is heavy — crew operates it, never players.', image: null, sensorIds: ['PRX-02'] },
-      'LOC-COMMS': { id: 'LOC-COMMS', templateId: 'LIB-LOC-003', name: 'Comms Bench', zone: 'Act 2', notes: 'Decryption puzzle station with cipher button box.', safety: 'Cable run taped down; check before game.', image: null, sensorIds: ['BTN-11'] },
-      'LOC-MED': { id: 'LOC-MED', templateId: 'LIB-LOC-004', name: 'Med Bay (safe zone)', zone: 'All acts', notes: 'Out-of-game rest area + revive mechanic station.', safety: 'Always out-of-game. Real first aid kit lives here.', image: null, sensorIds: [] },
+      'LOC-S7': {
+        id: 'LOC-S7', templateId: 'LIB-LOC-001', name: 'Sector 7 Warehouse', zone: 'Act 1',
+        notes: 'Main quest area. Two patrol routes, locker corridor, marked safety zone.',
+        safety: 'Fire exits east + west. No running on the mezzanine.', image: null,
+        sensorIds: ['RFID-07', 'NFC-03', 'MOT-04'],
+        mapKind: 'schematic', osm: { ...DEFAULT_OSM },
+        markers: [
+          { id: 'M1', kind: 'item', refId: 'CHM-A-004', x: 62, y: 48 },
+          { id: 'M2', kind: 'item', refId: 'CHM-A-007', x: 96, y: 30 },
+          { id: 'M3', kind: 'sensor', refId: 'RFID-07', x: 66, y: 54 },
+          { id: 'M4', kind: 'sensor', refId: 'NFC-03', x: 100, y: 36 },
+          { id: 'M5', kind: 'sensor', refId: 'MOT-04', x: 30, y: 12 },
+        ],
+        arrows: [
+          { id: 'A1', x1: 14, y1: 78, x2: 58, y2: 52 },
+          { id: 'A2', x1: 66, y1: 50, x2: 94, y2: 34 },
+        ],
+      },
+      'LOC-S8': {
+        id: 'LOC-S8', templateId: 'LIB-LOC-002', name: 'Sector 8 Gate', zone: 'Act 2',
+        notes: 'Locked until quest flag key_obtained.', safety: 'Gate is heavy — crew operates it, never players.',
+        image: null, sensorIds: ['PRX-02'],
+        mapKind: 'osm', osm: { ...DEFAULT_OSM },
+        markers: [{ id: 'M1', kind: 'sensor', refId: 'PRX-02', x: 80, y: 45 }],
+        arrows: [],
+      },
+      'LOC-COMMS': { id: 'LOC-COMMS', templateId: 'LIB-LOC-003', name: 'Comms Bench', zone: 'Act 2', notes: 'Decryption puzzle station with cipher button box.', safety: 'Cable run taped down; check before game.', image: null, sensorIds: ['BTN-11'], ...locationMapDefaults() },
+      'LOC-MED': { id: 'LOC-MED', templateId: 'LIB-LOC-004', name: 'Med Bay (safe zone)', zone: 'All acts', notes: 'Out-of-game rest area + revive mechanic station.', safety: 'Always out-of-game. Real first aid kit lives here.', image: null, sensorIds: [], ...locationMapDefaults() },
     },
 
     // Item INSTANCES: template fields copied at import time + game state.

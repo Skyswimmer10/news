@@ -119,6 +119,35 @@ input,select,textarea{font:inherit}
 .chip.addcat{border-style:dashed;color:var(--faint)}
 .chip.addcat:hover{color:var(--ink);border-color:var(--brand)}
 
+/* Location map stage */
+.stagewrap{flex:1;min-height:0;overflow:auto;border-top:1px solid var(--line-soft);background:#12141D;padding:14px 20px;display:grid;align-content:start}
+.stage{position:relative;width:100%;max-width:1180px;aspect-ratio:16/9;margin:0 auto;border-radius:12px;overflow:hidden;border:1px solid var(--line);
+       background:radial-gradient(circle at 1px 1px,#2A3040 1px,transparent 1.5px) 0 0/26px 26px,#171A24;user-select:none;touch-action:none}
+.stage.placing{cursor:crosshair}
+.stage.drawing{cursor:crosshair}
+.schematic{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#0F1117}
+.schematic.empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;text-align:center;color:var(--faint);padding:30px}
+.schematic.empty b{color:var(--muted);font-size:14px}
+.schematic.empty span{font-size:12px;max-width:44ch;line-height:1.5}
+.osmlayer{position:absolute;inset:0;overflow:hidden;background:#0F1117}
+.osmlayer img{position:absolute;width:256px;height:256px;filter:brightness(.85) saturate(.85)}
+.osmattr{position:absolute;right:6px;bottom:4px;font-size:9.5px;color:#B9BFD0;background:rgba(15,17,23,.7);padding:2px 6px;border-radius:4px;z-index:2}
+.osmblocked{position:absolute;inset:0;display:grid;place-items:center;text-align:center;color:var(--faint);font-size:12px;line-height:1.6;padding:30px}
+.osmctl{display:inline-flex;align-items:center;gap:4px;margin-left:auto}
+.stagesvg{position:absolute;inset:0;width:100%;height:100%;z-index:3}
+.arrowline{stroke:#E8D25C;stroke-width:1.1;fill:none;stroke-linecap:round;stroke-dasharray:3 2;
+           filter:drop-shadow(0 0 2px rgba(0,0,0,.8))}
+.arrowline.preview{opacity:.7}
+.arrowhit{stroke:transparent;stroke-width:3;fill:none;pointer-events:stroke;cursor:pointer}
+.parrow:hover .arrowline{stroke:#F08C8C}
+.stage .marker{position:absolute;transform:translate(-50%,-50%);z-index:4;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:grab}
+.stage .marker:active{cursor:grabbing}
+.stage .mdot{width:13px;height:13px;border-radius:50%;border:2.5px solid #0F1117;box-shadow:0 0 0 1.5px rgba(255,255,255,.35),0 2px 6px rgba(0,0,0,.6)}
+.stage .mlabel{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:650;color:var(--ink);background:rgba(15,17,23,.85);border:1px solid;border-radius:6px;padding:2px 7px;white-space:nowrap}
+.stage .mlabel .x{display:none;color:var(--faint);font-size:12px;line-height:1;padding:0 1px}
+.stage .marker:hover .mlabel .x{display:inline}
+.stage .mlabel .x:hover{color:var(--bad)}
+
 /* Empty project states */
 .emptyview{flex:1;border-top:1px solid var(--line-soft);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;background:#161923;text-align:center;padding:40px}
 .emptyview h3{font-size:16px;font-weight:650}

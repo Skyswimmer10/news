@@ -64,7 +64,7 @@ export const CSV_SCHEMAS = {
     filename: 'locations.csv',
     headers: ['id', 'name', 'zone', 'notes', 'safety', 'sensorIds'],
     newId: (s) => genId(s.locations, 'LOC-N-'),
-    blank: (id) => ({ id, templateId: null, name: 'New location', zone: '', notes: '', safety: '', image: null, sensorIds: [] }),
+    blank: (id) => ({ id, templateId: null, name: 'New location', zone: '', notes: '', safety: '', image: null, sensorIds: [], mapKind: 'schematic', osm: { lat: 56.9496, lon: 24.1052, zoom: 16 }, markers: [], arrows: [] }),
     toRows: (s) => Object.values(s.locations).map((l) => ({ ...l, sensorIds: l.sensorIds.join(';') })),
     fromRow: (row, s, warn) => ({
       name: row.name || 'Unnamed location',
