@@ -37,6 +37,27 @@ export function SectionLabel({ children }) {
   return <div className="lab">{children}</div>;
 }
 
+// Designated icons for Narrative Primitives.
+const PRIM_PATHS = {
+  flag: <path d="M6 21V4h12l-2.5 4L18 12H6" />,
+  pin: <><path d="M12 21s-6.5-5.4-6.5-10a6.5 6.5 0 0113 0c0 4.6-6.5 10-6.5 10z" /><circle cx="12" cy="10.6" r="2.3" /></>,
+  zap: <path d="M13 2L4 14h6l-1 8 9-12h-6l1-8z" />,
+  swap: <><path d="M4 8h13l-3-3M20 16H7l3 3" /></>,
+  cog: <><circle cx="12" cy="12" r="3.2" /><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.5 5.5l2 2M16.5 16.5l2 2M18.5 5.5l-2 2M7.5 16.5l-2 2" /></>,
+  cross: <path d="M5 5l14 14M19 5L5 19" />,
+  alert: <><path d="M12 3l10 18H2L12 3z" /><path d="M12 10v5M12 18.4v.3" /></>,
+  clock: <><circle cx="12" cy="12" r="8" /><path d="M12 8v4l3 2" /></>,
+};
+
+export function PrimIcon({ icon, color, size = 15 }) {
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} aria-hidden="true"
+      style={{ color, fill: 'none', stroke: 'currentColor', strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round', flex: 'none' }}>
+      {PRIM_PATHS[icon] ?? <rect x="5" y="5" width="14" height="14" rx="3" />}
+    </svg>
+  );
+}
+
 // Clickable build pipeline: Concept → … → Packed
 export function BuildFlow({ value, onChange }) {
   return (

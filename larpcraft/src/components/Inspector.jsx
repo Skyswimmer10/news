@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useGame, useDispatch, useLibrary, useLibraryDispatch } from '../state/store.jsx';
 import { resolveNode, itemsAssignedToPlayer, sensorsAssignedToPlayer } from '../state/reducer.js';
-import { importItem, importLocation, importSensor, importStory } from '../state/bridge.js';
+import { importItem, importLocation, importSensor, importStory, importPrimitive } from '../state/bridge.js';
 import { Chip, SectionLabel, BuildFlow, Pill, ENTITY_COLORS } from './bits.jsx';
 import ImageUploader from './ImageUploader.jsx';
 
@@ -240,15 +240,18 @@ const NODE_SWATCHES = ['#5CA8F5', '#43BF87', '#E0A23C', '#E86464', '#A87BF0', '#
 
 function NodePanel({ node }) {
   const s = useGame();
+  const lib = useLibrary();
   const dispatch = useDispatch();
   const upd = (patch) => dispatch({ type: 'UPDATE_ENTITY', coll: 'nodes', id: node.id, patch });
-  const color = node.color || ENTITY_COLORS[node.kind] || '#8B92A6';
+  const prim = node.primitiveId ? lib.primitives[node.primitiveId] : null;
+  const color = node.color || prim?.color || ENTITY_COLORS[node.kind] || '#8B92A6';
   const connections = s.edges.filter((e) => e.from === node.id || e.to === node.id);
   return (
     <>
+      {prim && <InstanceBadge templateId={prim.id} />}
       <div className="ihead">
         <div className="ihrow"><span className="sq big" style={{ background: color }} /><h3>{node.title}</h3></div>
-        <div className="sub">{node.kind} node · {node.id}</div>
+        <div className="sub">{node.kind} node · {node.id}{prim && <> · from <b>{prim.name}</b></>}</div>
       </div>
       <TextField label="Node title" value={node.title} onCommit={(v) => upd({ title: v })} />
       <TextField label="Notes" textarea value={node.body} onCommit={(v) => upd({ body: v })} />
@@ -405,17 +408,78 @@ function LibStoryPanel({ template }) {
       <TemplateBadge />
       <div className="ihead">
         <div className="ihrow"><span className="sq big" style={{ background: ENTITY_COLORS.story }} /><h3>{template.name}</h3></div>
-        <div className="sub mono">{template.id} · story structure · {template.beats.length} beats</div>
+        <div className="sub mono">{template.id} · story structure · {Object.keys(template.nodes).length} nodes · {template.edges.length} links</div>
       </div>
-      <ImportButton build={(l, p) => importStory(l, p, template.id)} label="Spawn beats on the flow canvas" />
+      <ImportButton build={(l, p) => importStory(l, p, template.id)} label="Import structure into game" />
       <TextField label="Name" value={template.name} onCommit={(v) => upd({ name: v })} />
-      <TextField label="Summary" textarea value={template.summary} onCommit={(v) => upd({ summary: v })} />
+      <TextField label="Description" textarea value={template.description} onCommit={(v) => upd({ description: v })} />
+      <TextField label="Estimated duration (minutes)" value={String(template.estMinutes)} onCommit={(v) => upd({ estMinutes: Math.max(1, parseInt(v, 10) || template.estMinutes) })} />
+      <div className="isect"><div className="hint">Open the structure from the catalogue grid to edit its node graph — changes there update this master template.</div></div>
+    </>
+  );
+}
+
+function LibPrimitivePanel({ template }) {
+  const libDispatch = useLibraryDispatch();
+  const upd = (patch) => libDispatch({ type: 'UPDATE_ENTITY', coll: 'primitives', id: template.id, patch });
+  return (
+    <>
+      <TemplateBadge />
+      <div className="ihead">
+        <div className="ihrow"><span className="sq big" style={{ background: template.color }} /><h3>{template.name}</h3></div>
+        <div className="sub mono">{template.id} · narrative primitive · {template.baseKind}</div>
+      </div>
+      <ImportButton build={(l, p) => importPrimitive(l, p, template.id)} label="Add node to game canvas" />
+      <TextField label="Name" value={template.name} onCommit={(v) => upd({ name: v })} />
+      <TextField label="Default description" textarea value={template.defaultBody} onCommit={(v) => upd({ defaultBody: v })} />
       <div className="isect">
-        <SectionLabel>Beats</SectionLabel>
+        <SectionLabel>Logic handles</SectionLabel>
         <div className="chips">
-          {template.beats.map((b, i) => <Chip key={i} color={ENTITY_COLORS[b.kind]}>{i + 1}. {b.title}</Chip>)}
+          {template.inputs.map((h) => <Chip key={h} color="#8B92A6">▸ {h}</Chip>)}
+          {template.inputs.length === 0 && <Chip color="#43BF87">entry point</Chip>}
+          {template.outputs.map((h) => <Chip key={h} color={template.color}>{h} ▸</Chip>)}
+          {template.outputs.length === 0 && <Chip color="#E86464">terminal</Chip>}
         </div>
       </div>
+      <div className="frow" style={{ padding: '13px 16px 0' }}>
+        <div><SectionLabel>Est. minutes</SectionLabel>
+          <input className="field-input" defaultValue={template.estMinutes}
+            onBlur={(e) => upd({ estMinutes: Math.max(1, parseInt(e.target.value, 10) || template.estMinutes) })} /></div>
+        <div><SectionLabel>Crew needed</SectionLabel>
+          <input className="field-input" defaultValue={template.crew}
+            onBlur={(e) => upd({ crew: Math.max(0, parseInt(e.target.value, 10) || 0) })} /></div>
+      </div>
+    </>
+  );
+}
+
+// A node inside a Story Structure's master graph (library editor selection).
+function LibStructNodePanel({ storyId, nodeId }) {
+  const lib = useLibrary();
+  const libDispatch = useLibraryDispatch();
+  const st = lib.stories[storyId];
+  const n = st?.nodes[nodeId];
+  if (!n) return <div className="empty">Node not found in this structure.</div>;
+  const upd = (patch) => libDispatch({
+    type: 'UPDATE_ENTITY', coll: 'stories', id: storyId,
+    patch: { nodes: { ...st.nodes, [nodeId]: { ...n, ...patch } } },
+  });
+  const prim = n.primitiveId ? lib.primitives[n.primitiveId] : null;
+  return (
+    <>
+      <TemplateBadge />
+      <div className="ihead">
+        <div className="ihrow"><span className="sq big" style={{ background: n.color || prim?.color || ENTITY_COLORS[n.kind] }} /><h3>{n.title}</h3></div>
+        <div className="sub">node in <b>{st.name}</b> · {n.kind}</div>
+      </div>
+      <TextField label="Node title" value={n.title} onCommit={(v) => upd({ title: v })} />
+      <TextField label="Notes" textarea value={n.body} onCommit={(v) => upd({ body: v })} />
+      {prim && (
+        <div className="isect">
+          <SectionLabel>Built from primitive</SectionLabel>
+          <div className="chips"><Chip color={prim.color}>{prim.name} · ~{prim.estMinutes} min</Chip></div>
+        </div>
+      )}
     </>
   );
 }
@@ -437,6 +501,8 @@ export default function Inspector({ selection, onSelect }) {
   else if (kind === 'lib-mechanics' && lib.mechanics[id]) body = <LibMechanicPanel template={lib.mechanics[id]} />;
   else if (kind === 'lib-sensors' && lib.sensors[id]) body = <LibSensorPanel template={lib.sensors[id]} />;
   else if (kind === 'lib-stories' && lib.stories[id]) body = <LibStoryPanel template={lib.stories[id]} />;
+  else if (kind === 'lib-primitives' && lib.primitives[id]) body = <LibPrimitivePanel template={lib.primitives[id]} />;
+  else if (kind === 'lib-structnode') body = <LibStructNodePanel storyId={selection.storyId} nodeId={id} />;
   else if (kind === 'node') {
     const r = resolveNode(s, lib, id);
     if (!r) body = null;

@@ -64,22 +64,57 @@ export function importLocation(lib, proj, templateId) {
   return { locations: { [id]: location }, createdId: id };
 }
 
-// A story structure spawns a chained set of nodes on the flow canvas.
+// A story structure is a saved node GRAPH. Importing instantiates a fully
+// detached copy: every node gets a fresh project id (the whole layout is
+// preserved, shifted below existing content), edges are remapped to the new
+// ids, and the copy keeps primitiveId provenance. Editing the copy never
+// touches the master template.
 export function importStory(lib, proj, storyId) {
   const t = lib.stories[storyId];
   if (!t) return null;
-  const baseY = 80 + (Object.keys(proj.nodes).length ? 260 : 0);
+  const tplNodes = Object.values(t.nodes);
+  if (!tplNodes.length) return null;
+  const existing = Object.values(proj.nodes);
+  const offsetY = existing.length ? Math.max(...existing.map((n) => n.y)) + 260 : 80;
+  const minX = Math.min(...tplNodes.map((n) => n.x));
+  const minY = Math.min(...tplNodes.map((n) => n.y));
+
+  const idMap = {};
   const nodes = {};
-  const edges = [];
-  const ids = [];
-  t.beats.forEach((beat, i) => {
+  tplNodes.forEach((n) => {
     const id = genId({ ...proj.nodes, ...nodes }, `${proj.meta.prefix}-N-`);
+    idMap[n.id] = id;
     nodes[id] = {
-      id, kind: beat.kind, title: beat.title, x: 60 + i * 300, y: baseY,
-      body: '', color: null, locationId: null, itemId: null, mechanicIds: [], sensorIds: [],
+      id, primitiveId: n.primitiveId ?? null, kind: n.kind, title: n.title,
+      x: n.x - minX + 60, y: n.y - minY + offsetY,
+      body: n.body ?? '', color: n.color ?? null,
+      locationId: null, itemId: null, mechanicIds: [], sensorIds: [],
     };
-    ids.push(id);
-    if (i > 0) edges.push({ from: ids[i - 1], to: id, label: '', color: null });
   });
-  return { nodes, edges, createdId: ids[0] };
+  const edges = t.edges
+    .filter((e) => idMap[e.from] && idMap[e.to])
+    .map((e) => ({ from: idMap[e.from], to: idMap[e.to], label: e.label || '', color: e.color ?? null }));
+  return { nodes, edges, createdId: idMap[tplNodes[0].id] };
+}
+
+// A single Narrative Primitive dropped into the active game as one node.
+export function importPrimitive(lib, proj, primitiveId, x = 100, y = 100) {
+  const p = lib.primitives[primitiveId];
+  if (!p) return null;
+  const id = genId(proj.nodes, `${proj.meta.prefix}-N-`);
+  const node = {
+    id, primitiveId: p.id, kind: p.baseKind, title: p.name,
+    x: Math.round(x), y: Math.round(y), body: p.defaultBody, color: null,
+    locationId: null, itemId: null, mechanicIds: [], sensorIds: [],
+  };
+  return { nodes: { [id]: node }, createdId: id };
+}
+
+// Instantiate a primitive as a node INSIDE a story structure (library editor).
+export function primitiveToStructNode(primitive, structNodes, x, y) {
+  const id = genId(structNodes, 'S');
+  return {
+    id, primitiveId: primitive.id, kind: primitive.baseKind, title: primitive.name,
+    x: Math.round(x), y: Math.round(y), body: primitive.defaultBody, color: null,
+  };
 }

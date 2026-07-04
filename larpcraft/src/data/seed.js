@@ -11,7 +11,7 @@
 //      game-state fields (build status, availability, placement, assignment,
 //      sensor battery) · edits affect only this game
 
-export const LIB_REV = 1;
+export const LIB_REV = 2;
 export const SEED_REV = 4;
 
 export function makeLibrarySeed() {
@@ -55,28 +55,56 @@ export function makeLibrarySeed() {
       'LIB-LOC-004': { id: 'LIB-LOC-004', name: 'Safe zone / med bay', notes: 'Out-of-game rest area + revive station.', safety: 'Always out-of-game; real first aid kit here.', image: null },
     },
 
-    // Story structures: reusable quest skeletons. Importing one spawns a
-    // chained set of nodes on the active project's flow canvas.
+    // NARRATIVE PRIMITIVES: single, isolated node templates — the raw
+    // building blocks of quest design. Each carries default input/output
+    // logic handles, default metadata, and a designated color + icon.
+    primitives: {
+      'LIB-PRIM-BRIEF': { id: 'LIB-PRIM-BRIEF', name: 'Start Briefing', baseKind: 'story', color: '#5CA8F5', icon: 'flag', inputs: [], outputs: ['out'], defaultBody: 'Hand teams the mission dossier and start the clock.', estMinutes: 10, crew: 1 },
+      'LIB-PRIM-WAYPT': { id: 'LIB-PRIM-WAYPT', name: 'Waypoint Check-in', baseKind: 'location', color: '#43BF87', icon: 'pin', inputs: ['in'], outputs: ['out'], defaultBody: 'Team must physically reach and confirm a marked point.', estMinutes: 5, crew: 0 },
+      'LIB-PRIM-SENSOR': { id: 'LIB-PRIM-SENSOR', name: 'Sensor Trigger', baseKind: 'sensor', color: '#3EC6D6', icon: 'zap', inputs: ['arm'], outputs: ['fired'], defaultBody: 'Fires a quest flag when the linked hardware triggers.', estMinutes: 1, crew: 0 },
+      'LIB-PRIM-HANDOFF': { id: 'LIB-PRIM-HANDOFF', name: 'Item Handoff', baseKind: 'objective', color: '#E0A23C', icon: 'swap', inputs: ['in'], outputs: ['done'], defaultBody: 'A physical item changes hands — player↔player or player↔NPC.', estMinutes: 8, crew: 1 },
+      'LIB-PRIM-PUZZLE': { id: 'LIB-PRIM-PUZZLE', name: 'Environmental Puzzle', baseKind: 'mechanic', color: '#A87BF0', icon: 'cog', inputs: ['in'], outputs: ['solved', 'failed'], defaultBody: 'On-site puzzle using props or sensors; hint after 3 fails.', estMinutes: 12, crew: 0 },
+      'LIB-PRIM-PHYS': { id: 'LIB-PRIM-PHYS', name: 'Physical Challenge', baseKind: 'enemy', color: '#E86464', icon: 'cross', inputs: ['in'], outputs: ['won', 'lost'], defaultBody: 'Chase, carry, or evade — crew referees the outcome.', estMinutes: 10, crew: 2 },
+      'LIB-PRIM-TWIST': { id: 'LIB-PRIM-TWIST', name: 'Plot Twist', baseKind: 'story', color: '#F08CB4', icon: 'alert', inputs: ['in'], outputs: ['out'], defaultBody: 'A revelation reframes the mission. Deliver via NPC or comms.', estMinutes: 5, crew: 1 },
+      'LIB-PRIM-TIMER': { id: 'LIB-PRIM-TIMER', name: 'Countdown Pressure', baseKind: 'mechanic', color: '#E8D25C', icon: 'clock', inputs: ['start'], outputs: ['expired'], defaultBody: 'Visible countdown; expiry punishes or escalates.', estMinutes: 15, crew: 0 },
+    },
+
+    // STORY STRUCTURES: saved, editable node graphs — complete pre-made loops
+    // assembled from Narrative Primitives. Importing one into a game creates
+    // a fully detached copy of the whole graph.
     stories: {
-      'LIB-STORY-HEIST': {
-        id: 'LIB-STORY-HEIST', name: 'Three-act heist',
-        summary: 'Brief → infiltrate → steal the MacGuffin → security responds → extract.',
-        beats: [
-          { kind: 'story', title: 'Briefing' },
-          { kind: 'location', title: 'Infiltration site' },
-          { kind: 'objective', title: 'Steal the MacGuffin' },
-          { kind: 'enemy', title: 'Security response' },
-          { kind: 'story', title: 'Extraction finale' },
+      'LIB-STORY-COURIER': {
+        id: 'LIB-STORY-COURIER', name: 'Courier Mission',
+        description: 'Pick up a package, run it through checkpoints under time pressure, deliver to an NPC.',
+        estMinutes: 35,
+        nodes: {
+          S1: { id: 'S1', primitiveId: 'LIB-PRIM-BRIEF', kind: 'story', title: 'Start Briefing', x: 40, y: 120, body: 'Teams get the courier contract and a sealed package location.', color: null },
+          S2: { id: 'S2', primitiveId: 'LIB-PRIM-HANDOFF', kind: 'objective', title: 'Package Pickup', x: 340, y: 60, body: 'Collect the package from the quartermaster NPC.', color: null },
+          S3: { id: 'S3', primitiveId: 'LIB-PRIM-WAYPT', kind: 'location', title: 'Checkpoint Alpha', x: 640, y: 120, body: 'Mandatory route confirmation — tag the waypoint reader.', color: null },
+          S4: { id: 'S4', primitiveId: 'LIB-PRIM-SENSOR', kind: 'sensor', title: 'Dropzone Trigger', x: 940, y: 60, body: 'Sensor confirms the package reached the dropzone.', color: null },
+          S5: { id: 'S5', primitiveId: 'LIB-PRIM-HANDOFF', kind: 'objective', title: 'Final Delivery', x: 1240, y: 120, body: 'Hand the package to the recipient NPC before the timer.', color: null },
+        },
+        edges: [
+          { from: 'S1', to: 'S2', label: 'contract accepted', color: null },
+          { from: 'S2', to: 'S3', label: 'package in hand', color: null },
+          { from: 'S3', to: 'S4', label: 'route confirmed', color: null },
+          { from: 'S4', to: 'S5', label: 'ON fired', color: null },
         ],
       },
-      'LIB-STORY-INVEST': {
-        id: 'LIB-STORY-INVEST', name: 'Investigation loop',
-        summary: 'Clue chain: each solved mechanic reveals the next site.',
-        beats: [
-          { kind: 'story', title: 'Cold open' },
-          { kind: 'mechanic', title: 'First clue puzzle' },
-          { kind: 'location', title: 'Revealed site' },
-          { kind: 'objective', title: 'Confront the suspect' },
+      'LIB-STORY-AMBUSH': {
+        id: 'LIB-STORY-AMBUSH', name: 'Ambush Scenario',
+        description: 'A routine check-in turns hostile: physical challenge, then a twist that reframes who attacked.',
+        estMinutes: 25,
+        nodes: {
+          S1: { id: 'S1', primitiveId: 'LIB-PRIM-BRIEF', kind: 'story', title: 'Start Briefing', x: 40, y: 100, body: 'A simple patrol assignment — or so it seems.', color: null },
+          S2: { id: 'S2', primitiveId: 'LIB-PRIM-WAYPT', kind: 'location', title: 'Patrol Waypoint', x: 340, y: 40, body: 'Check-in point deep in the play area.', color: null },
+          S3: { id: 'S3', primitiveId: 'LIB-PRIM-PHYS', kind: 'enemy', title: 'The Ambush', x: 640, y: 100, body: 'NPC crew springs the ambush; evade or stand ground.', color: null },
+          S4: { id: 'S4', primitiveId: 'LIB-PRIM-TWIST', kind: 'story', title: 'False Flag Reveal', x: 940, y: 40, body: 'Evidence on an attacker points to an ally faction.', color: null },
+        },
+        edges: [
+          { from: 'S1', to: 'S2', label: 'patrol starts', color: null },
+          { from: 'S2', to: 'S3', label: 'ON arrival', color: null },
+          { from: 'S3', to: 'S4', label: 'IF won', color: null },
         ],
       },
     },

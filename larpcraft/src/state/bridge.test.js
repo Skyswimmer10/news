@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { importItem, importLocation, importStory } from './bridge.js';
+import { importItem, importLocation, importStory, importPrimitive, primitiveToStructNode } from './bridge.js';
 import { reducer } from './reducer.js';
 import { makeLibrarySeed, makeProjectSeed, makeEmptyProject } from '../data/seed.js';
 
@@ -53,14 +53,53 @@ describe('library → project import bridge', () => {
     expect(loc.sensorIds).toEqual([]);
   });
 
-  it('imports a story structure as chained flow nodes', () => {
+  it('imports a story structure as a detached full-graph copy', () => {
     let proj = makeEmptyProject('Test Game');
-    const result = importStory(lib, proj, 'LIB-STORY-HEIST');
+    const result = importStory(lib, proj, 'LIB-STORY-COURIER');
     expect(Object.keys(result.nodes)).toHaveLength(5);
     expect(result.edges).toHaveLength(4);
+    // ids are remapped to project instance ids, provenance kept
+    for (const n of Object.values(result.nodes)) {
+      expect(n.id).toMatch(/^GAME-N-\d+$/);
+      expect(n.primitiveId).toMatch(/^LIB-PRIM-/);
+    }
+    // edges reference the new ids and preserve labels
+    expect(result.edges.every((e) => result.nodes[e.from] && result.nodes[e.to])).toBe(true);
+    expect(result.edges.map((e) => e.label)).toContain('package in hand');
     proj = reducer(proj, { type: 'IMPORT_FROM_LIBRARY', ...result });
     expect(Object.keys(proj.nodes)).toHaveLength(5);
-    expect(proj.edges).toHaveLength(4);
+
+    // editing the copy leaves the master template untouched (detached)
+    const copyId = Object.keys(proj.nodes)[0];
+    reducer(proj, { type: 'UPDATE_ENTITY', coll: 'nodes', id: copyId, patch: { title: 'Changed' } });
+    expect(lib.stories['LIB-STORY-COURIER'].nodes.S1.title).toBe('Start Briefing');
+  });
+
+  it('imports a single narrative primitive as one node with defaults', () => {
+    const proj = makeEmptyProject('Test Game');
+    const result = importPrimitive(lib, proj, 'LIB-PRIM-HANDOFF', 200, 150);
+    const node = result.nodes[result.createdId];
+    expect(node.primitiveId).toBe('LIB-PRIM-HANDOFF');
+    expect(node.kind).toBe('objective');
+    expect(node.title).toBe('Item Handoff');
+    expect(node.body).toContain('changes hands');
+  });
+
+  it('primitives instantiate as structure nodes for the template editor', () => {
+    const st = lib.stories['LIB-STORY-AMBUSH'];
+    const node = primitiveToStructNode(lib.primitives['LIB-PRIM-TIMER'], st.nodes, 300, 200);
+    expect(st.nodes[node.id]).toBeUndefined(); // fresh local id
+    expect(node).toMatchObject({ primitiveId: 'LIB-PRIM-TIMER', kind: 'mechanic', title: 'Countdown Pressure', x: 300, y: 200 });
+  });
+
+  it('seeded structures are built from seeded primitives', () => {
+    for (const st of Object.values(lib.stories)) {
+      for (const n of Object.values(st.nodes)) {
+        expect(lib.primitives[n.primitiveId]).toBeDefined();
+      }
+    }
+    expect(Object.keys(lib.primitives).length).toBeGreaterThanOrEqual(4);
+    expect(lib.stories['LIB-STORY-COURIER'].estMinutes).toBe(35);
   });
 
   it('new game state is empty while the library stays populated', () => {
