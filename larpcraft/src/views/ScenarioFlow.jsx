@@ -5,6 +5,7 @@ import FlowCanvas, { KIND_LABEL } from '../components/FlowCanvas.jsx';
 import StructureThumb from '../components/StructureThumb.jsx';
 import CsvButtons from '../components/CsvButtons.jsx';
 import { importStory } from '../state/bridge.js';
+import { genId } from '../data/csvSchemas.js';
 
 const KINDS = Object.keys(KIND_LABEL);
 
@@ -103,6 +104,14 @@ export default function ScenarioFlow({ selection, onSelect }) {
           onConnect={(from, to) => dispatch({ type: 'ADD_EDGE', from, to, color: nodeColor(s.nodes[from]) })}
           onRemoveEdge={(e) => dispatch({ type: 'REMOVE_EDGE', from: e.from, to: e.to })}
           onSetColor={(id, color) => dispatch({ type: 'UPDATE_ENTITY', coll: 'nodes', id, patch: { color } })}
+          onPasteNode={(p) => {
+            const id = genId(s.nodes, `${s.meta.prefix}-N-`);
+            dispatch({
+              type: 'ADD_NODE',
+              node: { id, ...p, locationId: null, itemId: null, mechanicIds: [], sensorIds: [] },
+            });
+            onSelect({ kind: 'node', id });
+          }}
           renderExtra={(n) => {
             const item = n.itemId ? s.items[n.itemId] : null;
             if (!item) return null;
@@ -117,7 +126,7 @@ export default function ScenarioFlow({ selection, onSelect }) {
         />
       )}
       <div className="statusbar">
-        <span>Drag nodes to arrange · drag the <b>○ port</b> onto another node to connect · click a node's <b>■ swatch</b> to recolor.</span>
+        <span>Drag to arrange · drag the <b>○ port</b> to connect · <b>■ swatch</b> recolors · <b>Ctrl+C</b> copies the selected node, <b>Ctrl+V</b> pastes.</span>
       </div>
       {importing && <StructureImportModal onClose={() => setImporting(false)}
         onImported={(id) => { setImporting(false); onSelect({ kind: 'node', id }); }} />}

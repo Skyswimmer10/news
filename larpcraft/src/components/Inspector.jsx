@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useGame, useDispatch, useLibrary, useLibraryDispatch } from '../state/store.jsx';
 import { resolveNode, itemsAssignedToPlayer, sensorsAssignedToPlayer } from '../state/reducer.js';
-import { importItem, importLocation, importSensor, importStory, importPrimitive } from '../state/bridge.js';
+import { importItem, importLocation, importSensor, importStory, importPrimitive, importElement } from '../state/bridge.js';
+import { ELEMENT_TYPES } from '../data/seed.js';
 import { Chip, SectionLabel, BuildFlow, Pill, ENTITY_COLORS } from './bits.jsx';
 import ImageUploader from './ImageUploader.jsx';
 
@@ -453,6 +454,32 @@ function LibPrimitivePanel({ template }) {
   );
 }
 
+function LibElementPanel({ template }) {
+  const libDispatch = useLibraryDispatch();
+  const upd = (patch) => libDispatch({ type: 'UPDATE_ENTITY', coll: 'elements', id: template.id, patch });
+  const meta = ELEMENT_TYPES[template.etype] ?? { label: template.etype, color: '#8B92A6' };
+  return (
+    <>
+      <TemplateBadge />
+      <div className="ihead">
+        <div className="ihrow"><span className="sq big" style={{ background: meta.color }} /><h3>{template.name}</h3></div>
+        <div className="sub mono">{template.id} · narrative element · {meta.label}</div>
+      </div>
+      <ImportButton build={(l, p) => importElement(l, p, template.id)} label="Add as story node in game" />
+      <TextField label="Name" value={template.name} onCommit={(v) => upd({ name: v })} />
+      <div className="isect">
+        <SectionLabel>Category</SectionLabel>
+        <select className="field-input" value={template.etype} onChange={(e) => upd({ etype: e.target.value })}>
+          {Object.entries(ELEMENT_TYPES).map(([key, m]) => <option key={key} value={key}>{m.label}</option>)}
+        </select>
+      </div>
+      <TextField label="Text · the element itself" textarea value={template.text} onCommit={(v) => upd({ text: v })} />
+      <TextField label="Tags (comma separated)" value={template.tags.join(', ')}
+        onCommit={(v) => upd({ tags: v.split(',').map((t) => t.trim()).filter(Boolean) })} />
+    </>
+  );
+}
+
 // A node inside a Story Structure's master graph (library editor selection).
 function LibStructNodePanel({ storyId, nodeId }) {
   const lib = useLibrary();
@@ -502,6 +529,7 @@ export default function Inspector({ selection, onSelect }) {
   else if (kind === 'lib-sensors' && lib.sensors[id]) body = <LibSensorPanel template={lib.sensors[id]} />;
   else if (kind === 'lib-stories' && lib.stories[id]) body = <LibStoryPanel template={lib.stories[id]} />;
   else if (kind === 'lib-primitives' && lib.primitives[id]) body = <LibPrimitivePanel template={lib.primitives[id]} />;
+  else if (kind === 'lib-elements' && lib.elements[id]) body = <LibElementPanel template={lib.elements[id]} />;
   else if (kind === 'lib-structnode') body = <LibStructNodePanel storyId={selection.storyId} nodeId={id} />;
   else if (kind === 'node') {
     const r = resolveNode(s, lib, id);

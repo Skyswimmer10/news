@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { importItem, importLocation, importStory, importPrimitive, primitiveToStructNode } from './bridge.js';
+import { importItem, importLocation, importStory, importPrimitive, importElement, primitiveToStructNode } from './bridge.js';
 import { reducer } from './reducer.js';
-import { makeLibrarySeed, makeProjectSeed, makeEmptyProject } from '../data/seed.js';
+import { makeLibrarySeed, makeProjectSeed, makeEmptyProject, LIB_BLANK, LIB_PREFIX } from '../data/seed.js';
+import { genId } from '../data/csvSchemas.js';
 
 const lib = makeLibrarySeed();
 
@@ -107,6 +108,30 @@ describe('library → project import bridge', () => {
     expect(Object.keys(proj.items)).toHaveLength(0);
     expect(Object.keys(proj.nodes)).toHaveLength(0);
     expect(Object.keys(lib.items).length).toBeGreaterThan(0); // untouched master DB
+  });
+
+  it('imports a narrative element as a story node carrying its text', () => {
+    const proj = makeEmptyProject('Test Game');
+    const result = importElement(lib, proj, 'LIB-ELM-003'); // Quartermaster Mank bio
+    const node = result.nodes[result.createdId];
+    expect(node.kind).toBe('story');
+    expect(node.title).toBe('Quartermaster Mank');
+    expect(node.body).toContain('meticulous ledgers');
+    expect(node.elementId).toBe('LIB-ELM-003');
+  });
+
+  it('every library section has a working blank factory for "+ New …"', () => {
+    let state = makeLibrarySeed();
+    for (const coll of Object.keys(LIB_BLANK)) {
+      const id = genId(state[coll], LIB_PREFIX[coll]);
+      state = reducer(state, { type: 'ADD_ENTITY', coll, entity: LIB_BLANK[coll](id) });
+      expect(state[coll][id]).toBeDefined();
+      expect(state[coll][id].id).toBe(id);
+    }
+    // a blank structure opens as an empty, editable graph
+    const newStory = Object.values(state.stories).find((s) => s.name === 'New structure');
+    expect(newStory.nodes).toEqual({});
+    expect(newStory.edges).toEqual([]);
   });
 
   it('active project serializes to JSON and loads back (mock save/load)', () => {

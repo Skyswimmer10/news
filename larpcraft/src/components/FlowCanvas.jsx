@@ -1,5 +1,9 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ENTITY_COLORS } from './bits.jsx';
+
+// In-app node clipboard, shared across canvases (copy in a structure
+// template, paste on the game canvas, and vice versa).
+let nodeClipboard = null;
 
 export const NODE_W = 236;
 export const KIND_LABEL = { story: 'Story beat', location: 'Location', objective: 'Objective', enemy: 'Enemy encounter', mechanic: 'Mechanic', sensor: 'Sensor trigger' };
@@ -14,12 +18,37 @@ const SWATCHES = ['#5CA8F5', '#43BF87', '#E0A23C', '#E86464', '#A87BF0', '#3EC6D
 export default function FlowCanvas({
   nodes, edges, selId, colorOf,
   onSelect, onMove, onConnect, onRemoveEdge, onSetColor, onDropPalette,
-  renderExtra,
+  onPasteNode, renderExtra,
 }) {
   const canvasRef = useRef(null);
   const dragRef = useRef(null);
   const [linkDrag, setLinkDrag] = useState(null);
   const [pickerFor, setPickerFor] = useState(null);
+
+  // Ctrl/Cmd+C copies the selected node; Ctrl/Cmd+V (or Ctrl+P) pastes a
+  // duplicate. Skipped while typing in a field or copying selected text.
+  useEffect(() => {
+    if (!onPasteNode) return undefined;
+    const onKey = (e) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      if (e.target.closest?.('input, textarea, select, [contenteditable="true"]')) return;
+      const k = e.key.toLowerCase();
+      if (k === 'c') {
+        if (window.getSelection()?.toString()) return; // real text copy wins
+        const n = selId && nodes[selId];
+        if (!n) return;
+        nodeClipboard = { kind: n.kind, title: n.title, body: n.body ?? '', color: n.color ?? null, primitiveId: n.primitiveId ?? null, x: n.x, y: n.y };
+        e.preventDefault();
+      } else if (k === 'v' || k === 'p') {
+        if (!nodeClipboard) return;
+        e.preventDefault();
+        nodeClipboard = { ...nodeClipboard, x: nodeClipboard.x + 28, y: nodeClipboard.y + 28 };
+        onPasteNode({ ...nodeClipboard });
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [selId, nodes, onPasteNode]);
 
   const list = Object.values(nodes);
   const extentX = Math.max(1400, ...list.map((n) => n.x + NODE_W + 320));

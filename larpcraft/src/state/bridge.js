@@ -110,6 +110,20 @@ export function importPrimitive(lib, proj, primitiveId, x = 100, y = 100) {
   return { nodes: { [id]: node }, createdId: id };
 }
 
+// A single Narrative Element (plot hook, briefing script, bio, rumor, lore)
+// dropped into the game as a ready-made story node carrying its text.
+export function importElement(lib, proj, elementId, x = 100, y = 100) {
+  const el = lib.elements[elementId];
+  if (!el) return null;
+  const id = genId(proj.nodes, `${proj.meta.prefix}-N-`);
+  const node = {
+    id, primitiveId: null, elementId: el.id, kind: 'story', title: el.name,
+    x: Math.round(x), y: Math.round(y), body: el.text, color: null,
+    locationId: null, itemId: null, mechanicIds: [], sensorIds: [],
+  };
+  return { nodes: { [id]: node }, createdId: id };
+}
+
 // Instantiate a primitive as a node INSIDE a story structure (library editor).
 export function primitiveToStructNode(primitive, structNodes, x, y) {
   const id = genId(structNodes, 'S');

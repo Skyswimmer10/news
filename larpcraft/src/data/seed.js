@@ -11,8 +11,32 @@
 //      game-state fields (build status, availability, placement, assignment,
 //      sensor battery) · edits affect only this game
 
-export const LIB_REV = 2;
+export const LIB_REV = 3;
 export const SEED_REV = 4;
+
+// Categories for single Narrative Elements (self-contained story pieces).
+export const ELEMENT_TYPES = {
+  'plot-hook': { label: 'Plot hook', color: '#F08CB4' },
+  'briefing-script': { label: 'Briefing script', color: '#5CA8F5' },
+  'npc-bio': { label: 'NPC bio', color: '#E0A23C' },
+  'rumor': { label: 'Rumor', color: '#43BF87' },
+  'lore': { label: 'Lore fragment', color: '#A87BF0' },
+};
+
+// Blank factories for the Library's "+ New …" buttons and id prefixes.
+export const LIB_PREFIX = {
+  items: 'LIB-ITM-', locations: 'LIB-LOC-', mechanics: 'LIB-MECH-N', sensors: 'LIB-SEN-N',
+  primitives: 'LIB-PRIM-N', stories: 'LIB-STORY-N', elements: 'LIB-ELM-',
+};
+export const LIB_BLANK = {
+  items: (id) => ({ id, name: 'New item template', type: 'gadget', description: '', propNotes: '', loreNotes: '', mechanicIds: [], sensorReqs: [], image: null }),
+  locations: (id) => ({ id, name: 'New location template', notes: '', safety: '', image: null }),
+  mechanics: (id) => ({ id, name: 'New mechanic', summary: '' }),
+  sensors: (id) => ({ id, kind: 'New sensor type', label: '' }),
+  primitives: (id) => ({ id, name: 'New primitive', baseKind: 'story', color: '#5CA8F5', icon: 'flag', inputs: ['in'], outputs: ['out'], defaultBody: '', estMinutes: 5, crew: 0 }),
+  stories: (id) => ({ id, name: 'New structure', description: '', estMinutes: 15, nodes: {}, edges: [] }),
+  elements: (id) => ({ id, name: 'New narrative element', etype: 'plot-hook', text: '', tags: [] }),
+};
 
 export function makeLibrarySeed() {
   return {
@@ -67,6 +91,17 @@ export function makeLibrarySeed() {
       'LIB-PRIM-PHYS': { id: 'LIB-PRIM-PHYS', name: 'Physical Challenge', baseKind: 'enemy', color: '#E86464', icon: 'cross', inputs: ['in'], outputs: ['won', 'lost'], defaultBody: 'Chase, carry, or evade — crew referees the outcome.', estMinutes: 10, crew: 2 },
       'LIB-PRIM-TWIST': { id: 'LIB-PRIM-TWIST', name: 'Plot Twist', baseKind: 'story', color: '#F08CB4', icon: 'alert', inputs: ['in'], outputs: ['out'], defaultBody: 'A revelation reframes the mission. Deliver via NPC or comms.', estMinutes: 5, crew: 1 },
       'LIB-PRIM-TIMER': { id: 'LIB-PRIM-TIMER', name: 'Countdown Pressure', baseKind: 'mechanic', color: '#E8D25C', icon: 'clock', inputs: ['start'], outputs: ['expired'], defaultBody: 'Visible countdown; expiry punishes or escalates.', estMinutes: 15, crew: 0 },
+    },
+
+    // NARRATIVE ELEMENTS: single, self-contained story pieces — hooks, scripts,
+    // bios, rumors, lore. Importable into a game as a ready-made story node.
+    elements: {
+      'LIB-ELM-001': { id: 'LIB-ELM-001', name: 'The Double Agent', etype: 'plot-hook', text: 'One trusted NPC has been feeding the opposing faction all along. Plant three small clues before the reveal.', tags: ['betrayal', 'mid-game'] },
+      'LIB-ELM-002': { id: 'LIB-ELM-002', name: 'Cold Open Briefing', etype: 'briefing-script', text: '"You were told this is a routine supply run. It is not. Twelve hours ago we lost contact with the site team…" — read aloud, then hand over the dossier.', tags: ['opening'] },
+      'LIB-ELM-003': { id: 'LIB-ELM-003', name: 'Quartermaster Mank', etype: 'npc-bio', text: 'Gruff, incorruptible, keeps meticulous ledgers. Will trade information only for returned equipment. Never leaves the depot.', tags: ['npc', 'trader'] },
+      'LIB-ELM-004': { id: 'LIB-ELM-004', name: 'The Meteor Rumor', etype: 'rumor', text: 'Players overhear: the artifact metal is not from Earth, and it hums near powered sensors. (True — usable as a hint.)', tags: ['hint', 'artifact'] },
+      'LIB-ELM-005': { id: 'LIB-ELM-005', name: 'Chimera Program Lore', etype: 'lore', text: 'Operation Chimera was a cancelled cold-war program to hide a listening post inside civilian logistics. Its flight paths were never declassified.', tags: ['backstory'] },
+      'LIB-ELM-006': { id: 'LIB-ELM-006', name: 'Radio Intercept 03:00', etype: 'plot-hook', text: 'A garbled transmission names one of the player teams as "the decoys". Broadcast it on the comms channel at the act break.', tags: ['twist', 'comms'] },
     },
 
     // STORY STRUCTURES: saved, editable node graphs — complete pre-made loops

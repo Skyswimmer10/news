@@ -4,14 +4,17 @@ import { Thumb, ENTITY_COLORS, PrimIcon } from '../components/bits.jsx';
 import FlowCanvas from '../components/FlowCanvas.jsx';
 import StructureThumb, { structNodeColor } from '../components/StructureThumb.jsx';
 import { primitiveToStructNode } from '../state/bridge.js';
+import { LIB_BLANK, LIB_PREFIX, ELEMENT_TYPES } from '../data/seed.js';
+import { genId } from '../data/csvSchemas.js';
 
 const TABS = [
-  { id: 'items', label: 'Items & Gadgets', color: 'var(--c-item)' },
-  { id: 'locations', label: 'Locations', color: 'var(--c-location)' },
-  { id: 'mechanics', label: 'Rules & Mechanics', color: 'var(--c-mechanic)' },
-  { id: 'sensors', label: 'Sensor hardware', color: 'var(--c-sensor)' },
-  { id: 'primitives', label: 'Narrative Primitives', color: '#F08CB4' },
-  { id: 'stories', label: 'Story Structures', color: 'var(--c-narrative)' },
+  { id: 'items', label: 'Items & Gadgets', color: 'var(--c-item)', addLabel: '+ New item template' },
+  { id: 'locations', label: 'Locations', color: 'var(--c-location)', addLabel: '+ New location template' },
+  { id: 'mechanics', label: 'Rules & Mechanics', color: 'var(--c-mechanic)', addLabel: '+ New mechanic' },
+  { id: 'sensors', label: 'Sensor hardware', color: 'var(--c-sensor)', addLabel: '+ New sensor type' },
+  { id: 'primitives', label: 'Narrative Primitives', color: '#F08CB4', addLabel: '+ New primitive' },
+  { id: 'elements', label: 'Narrative Elements', color: '#E8D25C', addLabel: '+ New element' },
+  { id: 'stories', label: 'Story Structures', color: 'var(--c-narrative)', addLabel: '+ New structure' },
 ];
 
 // Draggable palette entry: drop onto the structure editor canvas to add a
@@ -71,10 +74,16 @@ function StructureEditor({ structure, selection, onSelect, onBack }) {
             patch({ nodes: { ...structure.nodes, [node.id]: node } });
             onSelect({ kind: 'lib-structnode', id: node.id, storyId: structure.id });
           }}
+          onPasteNode={(p) => {
+            const id = genId(structure.nodes, 'S');
+            const node = { id, primitiveId: p.primitiveId ?? null, kind: p.kind, title: p.title, x: p.x, y: p.y, body: p.body, color: p.color ?? null };
+            patch({ nodes: { ...structure.nodes, [id]: node } });
+            onSelect({ kind: 'lib-structnode', id, storyId: structure.id });
+          }}
         />
       </div>
       <div className="statusbar">
-        <span>Editing the <b>master template</b> — changes apply to future imports. Games that already imported it keep their detached copies.</span>
+        <span>Editing the <b>master template</b> — changes apply to future imports · <b>Ctrl+C</b> copies the selected node, <b>Ctrl+V</b> pastes (works across canvases).</span>
       </div>
     </div>
   );
@@ -85,10 +94,22 @@ function StructureEditor({ structure, selection, onSelect, onBack }) {
 // editable node graphs assembled from primitives).
 export default function Library({ selection, onSelect }) {
   const lib = useLibrary();
+  const libDispatch = useLibraryDispatch();
   const [tab, setTab] = useState('items');
   const [editingStory, setEditingStory] = useState(null);
+  const [elemFilter, setElemFilter] = useState('all');
   const selId = selection?.kind?.startsWith('lib-') ? selection.id : null;
   const pick = (coll, id) => onSelect({ kind: `lib-${coll}`, id });
+
+  // "+ New …" for every library section: create a blank template, select it;
+  // new structures open straight into the graph editor.
+  const addNew = () => {
+    const id = genId(lib[tab], LIB_PREFIX[tab]);
+    libDispatch({ type: 'ADD_ENTITY', coll: tab, entity: LIB_BLANK[tab](id) });
+    pick(tab, id);
+    if (tab === 'stories') setEditingStory(id);
+  };
+  const activeTab = TABS.find((t) => t.id === tab);
 
   if (editingStory && lib.stories[editingStory]) {
     return <StructureEditor structure={lib.stories[editingStory]} selection={selection} onSelect={onSelect}
@@ -102,7 +123,10 @@ export default function Library({ selection, onSelect }) {
           <div className="crumb">Library / <b>Master database</b></div>
           <h2>Library Catalogue</h2>
         </div>
-        <div className="right"><span className="libbadge">Templates — reusable across games</span></div>
+        <div className="right">
+          <span className="libbadge">Templates — reusable across games</span>
+          <button className="btn primary" onClick={addNew}>{activeTab.addLabel}</button>
+        </div>
       </div>
       <div className="toolrow">
         {TABS.map((t) => (
@@ -169,6 +193,37 @@ export default function Library({ selection, onSelect }) {
               <div className="primmeta dim mono">~{p.estMinutes} min · crew {p.crew} · {p.id}</div>
             </button>
           ))}
+        </div>
+      )}
+
+      {tab === 'elements' && (
+        <div className="elemwrap">
+          <div className="toolrow" style={{ paddingTop: 12 }}>
+            <button className={`chip${elemFilter === 'all' ? ' on' : ''}`}
+              style={elemFilter === 'all' ? { background: '#E8D25C', color: '#1A1D26' } : undefined}
+              onClick={() => setElemFilter('all')}>All · {Object.keys(lib.elements).length}</button>
+            {Object.entries(ELEMENT_TYPES).map(([key, meta]) => (
+              <button key={key} className={`chip${elemFilter === key ? ' on' : ''}`}
+                style={elemFilter === key ? { background: meta.color } : undefined}
+                onClick={() => setElemFilter(key)}>{meta.label}s</button>
+            ))}
+          </div>
+          <div className="gallery elem">
+            {Object.values(lib.elements)
+              .filter((el) => elemFilter === 'all' || el.etype === elemFilter)
+              .map((el) => {
+                const meta = ELEMENT_TYPES[el.etype] ?? { label: el.etype, color: '#8B92A6' };
+                return (
+                  <button key={el.id} className={`elemcard${selId === el.id ? ' sel' : ''}`}
+                    style={{ borderTopColor: meta.color }} onClick={() => pick('elements', el.id)}>
+                    <span className="etag" style={{ color: meta.color }}>{meta.label}</span>
+                    <b>{el.name}</b>
+                    <small>{el.text}</small>
+                    <div className="primmeta dim mono">{el.tags.map((t) => `#${t}`).join(' ')} · {el.id}</div>
+                  </button>
+                );
+              })}
+          </div>
         </div>
       )}
 
