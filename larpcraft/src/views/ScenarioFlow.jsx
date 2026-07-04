@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { useGame, useDispatch } from '../state/store.jsx';
 import { ENTITY_COLORS, Pill } from '../components/bits.jsx';
+import CsvButtons from '../components/CsvButtons.jsx';
 
 const NODE_W = 236;
 const KIND_LABEL = { story: 'Story beat', location: 'Location', objective: 'Objective', enemy: 'Enemy encounter', mechanic: 'Mechanic', sensor: 'Sensor trigger' };
@@ -102,6 +103,9 @@ export default function ScenarioFlow({ selection, onSelect }) {
         <div>
           <div className="crumb">Operation Chimera / Narrative &amp; Quests / <b>Main questline</b></div>
           <h2>Scenario Flow — Act 1</h2>
+        </div>
+        <div className="right">
+          <CsvButtons coll="nodes" />
         </div>
       </div>
       <div className="toolrow">

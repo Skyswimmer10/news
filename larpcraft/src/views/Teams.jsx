@@ -2,6 +2,10 @@ import React from 'react';
 import { useGame, useDispatch } from '../state/store.jsx';
 import { playersOfTeam, itemsAssignedToPlayer, itemsAssignedToTeam, availableItems, sensorsAssignedToPlayer } from '../state/reducer.js';
 import { Pill, ENTITY_COLORS } from '../components/bits.jsx';
+import CsvButtons from '../components/CsvButtons.jsx';
+import { CSV_SCHEMAS, genId } from '../data/csvSchemas.js';
+
+const TEAM_COLORS = ['#5CA8F5', '#E0A23C', '#A87BF0', '#43BF87', '#E86464', '#3EC6D6'];
 
 // Teams & Rosters: issue physical items and sensor hardware to player roles.
 // Assigning dispatches ASSIGN_ITEM, which also flips the item to 'in-use' in
@@ -12,12 +16,27 @@ export default function Teams({ selection, onSelect }) {
   const freeItems = availableItems(s);
   const freeSensors = Object.values(s.sensors).filter((x) => !x.assignedTo);
 
+  const addPlayer = (teamId) => {
+    const id = CSV_SCHEMAS.players.newId(s);
+    dispatch({ type: 'ADD_ENTITY', coll: 'players', entity: { ...CSV_SCHEMAS.players.blank(id), teamId } });
+    onSelect({ kind: 'player', id });
+  };
+  const addTeam = () => {
+    const id = genId(s.teams, 'T-N-');
+    const color = TEAM_COLORS[Object.keys(s.teams).length % TEAM_COLORS.length];
+    dispatch({ type: 'ADD_ENTITY', coll: 'teams', entity: { id, name: 'New team', color, focus: '' } });
+  };
+
   return (
     <div className="main">
       <div className="mhead">
         <div>
           <div className="crumb">Operation Chimera / <b>Players &amp; Teams</b></div>
           <h2>Teams &amp; Rosters</h2>
+        </div>
+        <div className="right">
+          <CsvButtons coll="players" />
+          <button className="btn primary" onClick={addTeam}>+ New team</button>
         </div>
       </div>
 
@@ -31,6 +50,7 @@ export default function Teams({ selection, onSelect }) {
                 <span className="emb" style={{ background: team.color }}>{team.name.split(' ').pop()[0]}</span>
                 <div><b>{team.name}</b><small>{team.focus}</small></div>
                 <span className="kitcount mono">{teamKit.length} items issued</span>
+                <button className="btn ghost small" onClick={() => addPlayer(team.id)}>+ Add player</button>
               </div>
 
               <div className="roster">

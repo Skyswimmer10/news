@@ -1,15 +1,24 @@
 import React, { useState } from 'react';
-import { useGame } from '../state/store.jsx';
+import { useGame, useDispatch } from '../state/store.jsx';
 import { itemList } from '../state/reducer.js';
 import { Thumb, Pill, ENTITY_COLORS } from '../components/bits.jsx';
+import CsvButtons from '../components/CsvButtons.jsx';
+import { CSV_SCHEMAS } from '../data/csvSchemas.js';
 
 const TYPE_TAGS = { artifact: 'Artifact', gadget: 'Gadget', consumable: 'Consumable' };
 
 export default function ItemDatabase({ selection, onSelect }) {
   const s = useGame();
+  const dispatch = useDispatch();
   const [view, setView] = useState('gallery');
   const [filter, setFilter] = useState('all');
   const [q, setQ] = useState('');
+
+  const addNew = () => {
+    const id = CSV_SCHEMAS.items.newId(s);
+    dispatch({ type: 'ADD_ENTITY', coll: 'items', entity: CSV_SCHEMAS.items.blank(id) });
+    onSelect({ kind: 'item', id });
+  };
 
   const items = itemList(s).filter((i) =>
     (filter === 'all' || i.type === filter) &&
@@ -24,6 +33,10 @@ export default function ItemDatabase({ selection, onSelect }) {
         <div>
           <div className="crumb">Operation Chimera / <b>Items &amp; Gadgets</b></div>
           <h2>Item Database</h2>
+        </div>
+        <div className="right">
+          <CsvButtons coll="items" />
+          <button className="btn primary" onClick={addNew}>+ New item</button>
         </div>
       </div>
       <div className="toolrow">

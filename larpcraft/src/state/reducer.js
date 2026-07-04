@@ -86,6 +86,20 @@ export function reducer(state, action) {
       };
     }
 
+    // "Add new" buttons: insert a fresh entity into a collection.
+    case 'ADD_ENTITY': {
+      const { coll, entity } = action;
+      if (!entity?.id || state[coll][entity.id]) return state;
+      return { ...state, [coll]: { ...state[coll], [entity.id]: entity } };
+    }
+
+    // CSV import: entities are fully built by the caller (existing records
+    // merged, new records from blanks) and replace by id.
+    case 'IMPORT_ENTITIES': {
+      const { coll, entities } = action;
+      return { ...state, [coll]: { ...state[coll], ...entities } };
+    }
+
     // ---- scenario graph editing ----
     case 'ADD_NODE': {
       const n = action.node;

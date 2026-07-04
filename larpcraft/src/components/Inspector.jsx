@@ -171,15 +171,22 @@ function LocationPanel({ location, viaNode }) {
 
 function PlayerPanel({ player }) {
   const s = useGame();
+  const dispatch = useDispatch();
   const kit = itemsAssignedToPlayer(s, player.id);
   const hw = sensorsAssignedToPlayer(s, player.id);
   const team = s.teams[player.teamId];
+  const upd = (patch) => dispatch({ type: 'UPDATE_ENTITY', coll: 'players', id: player.id, patch });
   return (
     <>
       <div className="ihead">
         <div className="ihrow"><h3>{player.name}</h3></div>
         <div className="sub">{team?.name} · {player.role}{player.flags.map((f) => ` · ${f}`)}</div>
       </div>
+      <TextField label="Player name" value={player.name} onCommit={(v) => upd({
+        name: v,
+        initials: v.split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase() || '?',
+      })} />
+      <TextField label="Role" value={player.role} onCommit={(v) => upd({ role: v })} />
       <div className="isect">
         <SectionLabel>Issued kit</SectionLabel>
         <div className="chips">
