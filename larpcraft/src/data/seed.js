@@ -11,7 +11,7 @@
 //      game-state fields (build status, availability, placement, assignment,
 //      sensor battery) · edits affect only this game
 
-export const LIB_REV = 6;
+export const LIB_REV = 7;
 export const SEED_REV = 6;
 
 // Default item types — seeds the editable lib.itemTypes collection.
@@ -29,14 +29,16 @@ export const STAGE_H = 90;
 export const DEFAULT_OSM = { lat: 56.9496, lon: 24.1052, zoom: 16 };
 export const locationMapDefaults = () => ({ mapKind: 'schematic', osm: { ...DEFAULT_OSM }, markers: [], arrows: [] });
 
-// Default categories for single Narrative Elements. These seed the editable
-// lib.elementTypes collection — users can add and delete categories at will.
-export const DEFAULT_ELEMENT_TYPES = {
-  'plot-hook': { id: 'plot-hook', label: 'Plot hook', color: '#F08CB4' },
-  'briefing-script': { id: 'briefing-script', label: 'Briefing script', color: '#5CA8F5' },
-  'npc-bio': { id: 'npc-bio', label: 'NPC bio', color: '#E0A23C' },
-  'rumor': { id: 'rumor', label: 'Rumor', color: '#43BF87' },
-  'lore': { id: 'lore', label: 'Lore fragment', color: '#A87BF0' },
+// Editable categories for the unified Narrative library (merged primitives +
+// elements). Users can add and delete categories. Each carries a color + icon
+// used on the narrative node cards and the story-structure canvas.
+export const DEFAULT_NARRATIVE_CATEGORIES = {
+  'story-beat': { id: 'story-beat', label: 'Story beat', color: '#5CA8F5', icon: 'flag' },
+  'plot-hook': { id: 'plot-hook', label: 'Plot hook', color: '#F08CB4', icon: 'alert' },
+  'briefing-script': { id: 'briefing-script', label: 'Briefing script', color: '#5CA8F5', icon: 'flag' },
+  'npc-bio': { id: 'npc-bio', label: 'NPC bio', color: '#E0A23C', icon: 'swap' },
+  'rumor': { id: 'rumor', label: 'Rumor', color: '#43BF87', icon: 'zap' },
+  'lore': { id: 'lore', label: 'Lore fragment', color: '#A87BF0', icon: 'cog' },
 };
 
 // Descriptive tabs shown under a Game Master Rule's core principle.
@@ -49,25 +51,55 @@ export const GM_RULE_TABS = [
 // Blank factories for the Library's "+ New …" buttons and id prefixes.
 export const LIB_PREFIX = {
   items: 'LIB-ITM-', locations: 'LIB-LOC-', mechanics: 'LIB-MECH-N', sensors: 'LIB-SEN-N',
-  primitives: 'LIB-PRIM-N', stories: 'LIB-STORY-N', elements: 'LIB-ELM-', gmRules: 'LIB-GMR-',
+  narrative: 'LIB-NAR-', mechPrimitives: 'LIB-MPRIM-', stories: 'LIB-STORY-N', gmRules: 'LIB-GMR-',
 };
 export const LIB_BLANK = {
   items: (id) => ({ id, name: 'New item template', type: 'gadget', description: '', propNotes: '', loreNotes: '', mechanicIds: [], sensorReqs: [], image: null }),
   locations: (id) => ({ id, name: 'New location template', notes: '', safety: '', image: null }),
   mechanics: (id) => ({ id, name: 'New mechanic', summary: '', params: [] }),
   sensors: (id) => ({ id, kind: 'New sensor type', label: '' }),
-  primitives: (id) => ({ id, name: 'New primitive', baseKind: 'story', color: '#5CA8F5', icon: 'flag', inputs: ['in'], outputs: ['out'], defaultBody: '', estMinutes: 5, crew: 0 }),
+  // Unified narrative building block (story-only): shows in the Narrative
+  // library and drops onto the story-structure canvas.
+  narrative: (id) => ({ id, name: 'New narrative element', category: 'story-beat', color: '#5CA8F5', icon: 'flag', body: '', tags: [], inputs: ['in'], outputs: ['out'] }),
+  // Mechanic node type (sensor/physical/task) for the Game Mechanics node tree.
+  mechPrimitives: (id) => ({ id, name: 'New mechanic node', baseKind: 'mechanic', color: '#A87BF0', icon: 'cog', inputs: ['in'], outputs: ['out'], defaultBody: '', estMinutes: 5, crew: 0 }),
   stories: (id) => ({ id, name: 'New structure', description: '', estMinutes: 15, nodes: {}, edges: [] }),
-  elements: (id) => ({ id, name: 'New narrative element', etype: 'plot-hook', text: '', tags: [] }),
   gmRules: (id) => ({ id, title: 'New game master rule', principle: '', implementation: '', rationale: '', aiRule: '' }),
 };
 
-// Additive migration: backfill any library collections a saved library is
-// missing (e.g. after adding gmRules) so a schema bump never wipes user data.
+// Migration: preserve user-authored library data across schema bumps.
+//  - additively backfills any missing collections;
+//  - v6→v7 splits the old `primitives` pool into `narrative` (story nodes) and
+//    `mechPrimitives` (mechanic nodes), folds `elements` into `narrative`, and
+//    renames `elementTypes` → `narrativeCategories`.
 export function migrateLibrary(saved) {
   if (!saved || typeof saved !== 'object' || !saved.items) return makeLibrarySeed();
   const seed = makeLibrarySeed();
   const merged = { ...saved };
+
+  if (saved.primitives || saved.elements || saved.elementTypes) {
+    const narrative = { ...(saved.narrative || {}) };
+    const mechPrimitives = { ...(saved.mechPrimitives || {}) };
+    for (const p of Object.values(saved.primitives || {})) {
+      if (p.baseKind === 'story') {
+        narrative[p.id] = { id: p.id, name: p.name, category: 'story-beat', color: p.color, icon: p.icon || 'flag', body: p.defaultBody || '', tags: [], inputs: p.inputs || [], outputs: p.outputs || ['out'] };
+      } else {
+        mechPrimitives[p.id] = { ...p };
+      }
+    }
+    const cats = saved.elementTypes || {};
+    for (const el of Object.values(saved.elements || {})) {
+      narrative[el.id] = { id: el.id, name: el.name, category: el.etype || 'story-beat', color: cats[el.etype]?.color || '#5CA8F5', icon: cats[el.etype]?.icon || 'flag', body: el.text || '', tags: el.tags || [], inputs: ['in'], outputs: ['out'] };
+    }
+    merged.narrative = narrative;
+    merged.mechPrimitives = mechPrimitives;
+    merged.narrativeCategories = saved.narrativeCategories
+      || { ...seed.narrativeCategories, ...Object.fromEntries(Object.values(cats).map((c) => [c.id, { ...c, icon: c.icon || seed.narrativeCategories[c.id]?.icon || 'flag' }])) };
+    delete merged.primitives;
+    delete merged.elements;
+    delete merged.elementTypes;
+  }
+
   for (const key of Object.keys(seed)) {
     if (merged[key] === undefined) merged[key] = seed[key];
   }
@@ -123,21 +155,36 @@ export function makeLibrarySeed() {
     // NARRATIVE PRIMITIVES: single, isolated node templates — the raw
     // building blocks of quest design. Each carries default input/output
     // logic handles, default metadata, and a designated color + icon.
-    primitives: {
-      'LIB-PRIM-BRIEF': { id: 'LIB-PRIM-BRIEF', name: 'Start Briefing', baseKind: 'story', color: '#5CA8F5', icon: 'flag', inputs: [], outputs: ['out'], defaultBody: 'Hand teams the mission dossier and start the clock.', estMinutes: 10, crew: 1 },
-      'LIB-PRIM-WAYPT': { id: 'LIB-PRIM-WAYPT', name: 'Waypoint Check-in', baseKind: 'location', color: '#43BF87', icon: 'pin', inputs: ['in'], outputs: ['out'], defaultBody: 'Team must physically reach and confirm a marked point.', estMinutes: 5, crew: 0 },
-      'LIB-PRIM-SENSOR': { id: 'LIB-PRIM-SENSOR', name: 'Sensor Trigger', baseKind: 'sensor', color: '#3EC6D6', icon: 'zap', inputs: ['arm'], outputs: ['fired'], defaultBody: 'Fires a quest flag when the linked hardware triggers.', estMinutes: 1, crew: 0 },
-      'LIB-PRIM-HANDOFF': { id: 'LIB-PRIM-HANDOFF', name: 'Item Handoff', baseKind: 'objective', color: '#E0A23C', icon: 'swap', inputs: ['in'], outputs: ['done'], defaultBody: 'A physical item changes hands — player↔player or player↔NPC.', estMinutes: 8, crew: 1 },
-      'LIB-PRIM-PUZZLE': { id: 'LIB-PRIM-PUZZLE', name: 'Environmental Puzzle', baseKind: 'mechanic', color: '#A87BF0', icon: 'cog', inputs: ['in'], outputs: ['solved', 'failed'], defaultBody: 'On-site puzzle using props or sensors; hint after 3 fails.', estMinutes: 12, crew: 0 },
-      'LIB-PRIM-PHYS': { id: 'LIB-PRIM-PHYS', name: 'Physical Challenge', baseKind: 'enemy', color: '#E86464', icon: 'cross', inputs: ['in'], outputs: ['won', 'lost'], defaultBody: 'Chase, carry, or evade — crew referees the outcome.', estMinutes: 10, crew: 2 },
-      'LIB-PRIM-TWIST': { id: 'LIB-PRIM-TWIST', name: 'Plot Twist', baseKind: 'story', color: '#F08CB4', icon: 'alert', inputs: ['in'], outputs: ['out'], defaultBody: 'A revelation reframes the mission. Deliver via NPC or comms.', estMinutes: 5, crew: 1 },
-      'LIB-PRIM-TIMER': { id: 'LIB-PRIM-TIMER', name: 'Countdown Pressure', baseKind: 'mechanic', color: '#E8D25C', icon: 'clock', inputs: ['start'], outputs: ['expired'], defaultBody: 'Visible countdown; expiry punishes or escalates.', estMinutes: 15, crew: 0 },
+    // NARRATIVE (Story & Narrative): one unified list of purely-story building
+    // blocks — beats, plot hooks, briefing scripts, NPC bios, rumors, lore.
+    // Each is a narrative node you can drop onto a story-structure canvas or
+    // import into a game as a story node. No mechanic/sensor logic lives here.
+    narrative: {
+      'LIB-NAR-001': { id: 'LIB-NAR-001', name: 'Start Briefing', category: 'briefing-script', color: '#5CA8F5', icon: 'flag', body: 'Hand teams the mission dossier and start the clock.', tags: ['opening'], inputs: [], outputs: ['out'] },
+      'LIB-NAR-002': { id: 'LIB-NAR-002', name: 'Plot Twist', category: 'plot-hook', color: '#F08CB4', icon: 'alert', body: 'A revelation reframes the mission. Deliver via NPC or comms.', tags: ['twist'], inputs: ['in'], outputs: ['out'] },
+      'LIB-NAR-003': { id: 'LIB-NAR-003', name: 'The Double Agent', category: 'plot-hook', color: '#F08CB4', icon: 'alert', body: 'One trusted NPC has been feeding the opposing faction all along. Plant three small clues before the reveal.', tags: ['betrayal', 'mid-game'], inputs: ['in'], outputs: ['out'] },
+      'LIB-NAR-004': { id: 'LIB-NAR-004', name: 'Cold Open Briefing', category: 'briefing-script', color: '#5CA8F5', icon: 'flag', body: '"You were told this is a routine supply run. It is not. Twelve hours ago we lost contact with the site team…" — read aloud, then hand over the dossier.', tags: ['opening'], inputs: [], outputs: ['out'] },
+      'LIB-NAR-005': { id: 'LIB-NAR-005', name: 'Quartermaster Mank', category: 'npc-bio', color: '#E0A23C', icon: 'swap', body: 'Gruff, incorruptible, keeps meticulous ledgers. Will trade information only for returned equipment. Never leaves the depot.', tags: ['npc', 'trader'], inputs: ['in'], outputs: ['out'] },
+      'LIB-NAR-006': { id: 'LIB-NAR-006', name: 'The Meteor Rumor', category: 'rumor', color: '#43BF87', icon: 'zap', body: 'Players overhear: the artifact metal is not from Earth, and it hums near powered sensors. (True — usable as a hint.)', tags: ['hint', 'artifact'], inputs: ['in'], outputs: ['out'] },
+      'LIB-NAR-007': { id: 'LIB-NAR-007', name: 'Chimera Program Lore', category: 'lore', color: '#A87BF0', icon: 'cog', body: 'Operation Chimera was a cancelled cold-war program to hide a listening post inside civilian logistics. Its flight paths were never declassified.', tags: ['backstory'], inputs: ['in'], outputs: ['out'] },
+      'LIB-NAR-008': { id: 'LIB-NAR-008', name: 'Radio Intercept 03:00', category: 'plot-hook', color: '#F08CB4', icon: 'alert', body: 'A garbled transmission names one of the player teams as "the decoys". Broadcast it on the comms channel at the act break.', tags: ['twist', 'comms'], inputs: ['in'], outputs: ['out'] },
     },
 
-    // Editable type systems: both live in the Library so they persist across
-    // games. Add/delete from the Items and Narrative Elements tabs.
+    // MECHANIC PRIMITIVES (Game Mechanics node tree): the physical / sensor /
+    // task node types — sensor triggers, puzzles, challenges, timers, waypoints,
+    // handoffs. These are the mechanics counterpart to the narrative nodes.
+    mechPrimitives: {
+      'LIB-MPRIM-WAYPT': { id: 'LIB-MPRIM-WAYPT', name: 'Waypoint Check-in', baseKind: 'location', color: '#43BF87', icon: 'pin', inputs: ['in'], outputs: ['out'], defaultBody: 'Team must physically reach and confirm a marked point.', estMinutes: 5, crew: 0 },
+      'LIB-MPRIM-SENSOR': { id: 'LIB-MPRIM-SENSOR', name: 'Sensor Trigger', baseKind: 'sensor', color: '#3EC6D6', icon: 'zap', inputs: ['arm'], outputs: ['fired'], defaultBody: 'Fires a quest flag when the linked hardware triggers.', estMinutes: 1, crew: 0 },
+      'LIB-MPRIM-HANDOFF': { id: 'LIB-MPRIM-HANDOFF', name: 'Item Handoff', baseKind: 'objective', color: '#E0A23C', icon: 'swap', inputs: ['in'], outputs: ['done'], defaultBody: 'A physical item changes hands — player↔player or player↔NPC.', estMinutes: 8, crew: 1 },
+      'LIB-MPRIM-PUZZLE': { id: 'LIB-MPRIM-PUZZLE', name: 'Environmental Puzzle', baseKind: 'mechanic', color: '#A87BF0', icon: 'cog', inputs: ['in'], outputs: ['solved', 'failed'], defaultBody: 'On-site puzzle using props or sensors; hint after 3 fails.', estMinutes: 12, crew: 0 },
+      'LIB-MPRIM-PHYS': { id: 'LIB-MPRIM-PHYS', name: 'Physical Challenge', baseKind: 'enemy', color: '#E86464', icon: 'cross', inputs: ['in'], outputs: ['won', 'lost'], defaultBody: 'Chase, carry, or evade — crew referees the outcome.', estMinutes: 10, crew: 2 },
+      'LIB-MPRIM-TIMER': { id: 'LIB-MPRIM-TIMER', name: 'Countdown Pressure', baseKind: 'mechanic', color: '#E8D25C', icon: 'clock', inputs: ['start'], outputs: ['expired'], defaultBody: 'Visible countdown; expiry punishes or escalates.', estMinutes: 15, crew: 0 },
+    },
+
+    // Editable type systems (persist across games in the Library).
     itemTypes: { ...DEFAULT_ITEM_TYPES },
-    elementTypes: { ...DEFAULT_ELEMENT_TYPES },
+    narrativeCategories: { ...DEFAULT_NARRATIVE_CATEGORIES },
 
     // GAME MASTER RULES: global design principles that shape the whole game.
     // Each rule leads with a short core principle (≤4 sentences), then carries
@@ -169,53 +216,40 @@ export function makeLibrarySeed() {
       },
     },
 
-    // NARRATIVE ELEMENTS: single, self-contained story pieces — hooks, scripts,
-    // bios, rumors, lore. Importable into a game as a ready-made story node.
-    elements: {
-      'LIB-ELM-001': { id: 'LIB-ELM-001', name: 'The Double Agent', etype: 'plot-hook', text: 'One trusted NPC has been feeding the opposing faction all along. Plant three small clues before the reveal.', tags: ['betrayal', 'mid-game'] },
-      'LIB-ELM-002': { id: 'LIB-ELM-002', name: 'Cold Open Briefing', etype: 'briefing-script', text: '"You were told this is a routine supply run. It is not. Twelve hours ago we lost contact with the site team…" — read aloud, then hand over the dossier.', tags: ['opening'] },
-      'LIB-ELM-003': { id: 'LIB-ELM-003', name: 'Quartermaster Mank', etype: 'npc-bio', text: 'Gruff, incorruptible, keeps meticulous ledgers. Will trade information only for returned equipment. Never leaves the depot.', tags: ['npc', 'trader'] },
-      'LIB-ELM-004': { id: 'LIB-ELM-004', name: 'The Meteor Rumor', etype: 'rumor', text: 'Players overhear: the artifact metal is not from Earth, and it hums near powered sensors. (True — usable as a hint.)', tags: ['hint', 'artifact'] },
-      'LIB-ELM-005': { id: 'LIB-ELM-005', name: 'Chimera Program Lore', etype: 'lore', text: 'Operation Chimera was a cancelled cold-war program to hide a listening post inside civilian logistics. Its flight paths were never declassified.', tags: ['backstory'] },
-      'LIB-ELM-006': { id: 'LIB-ELM-006', name: 'Radio Intercept 03:00', etype: 'plot-hook', text: 'A garbled transmission names one of the player teams as "the decoys". Broadcast it on the comms channel at the act break.', tags: ['twist', 'comms'] },
-    },
-
-    // STORY STRUCTURES: saved, editable node graphs — complete pre-made loops
-    // assembled from Narrative Primitives. Importing one into a game creates
-    // a fully detached copy of the whole graph.
+    // STORY STRUCTURES: saved, editable narrative graphs — pure story arcs
+    // assembled from narrative nodes (no mechanic nodes). Importing one into a
+    // game creates a fully detached copy of the whole graph.
     stories: {
-      'LIB-STORY-COURIER': {
-        id: 'LIB-STORY-COURIER', name: 'Courier Mission',
-        description: 'Pick up a package, run it through checkpoints under time pressure, deliver to an NPC.',
-        estMinutes: 35,
+      'LIB-STORY-BETRAY': {
+        id: 'LIB-STORY-BETRAY', name: 'Betrayal Reveal',
+        description: 'A slow-burn traitor arc: seed suspicion, twist the knife, then flip who the enemy really was.',
+        estMinutes: 30,
         nodes: {
-          S1: { id: 'S1', primitiveId: 'LIB-PRIM-BRIEF', kind: 'story', title: 'Start Briefing', x: 40, y: 120, body: 'Teams get the courier contract and a sealed package location.', color: null },
-          S2: { id: 'S2', primitiveId: 'LIB-PRIM-HANDOFF', kind: 'objective', title: 'Package Pickup', x: 340, y: 60, body: 'Collect the package from the quartermaster NPC.', color: null },
-          S3: { id: 'S3', primitiveId: 'LIB-PRIM-WAYPT', kind: 'location', title: 'Checkpoint Alpha', x: 640, y: 120, body: 'Mandatory route confirmation — tag the waypoint reader.', color: null },
-          S4: { id: 'S4', primitiveId: 'LIB-PRIM-SENSOR', kind: 'sensor', title: 'Dropzone Trigger', x: 940, y: 60, body: 'Sensor confirms the package reached the dropzone.', color: null },
-          S5: { id: 'S5', primitiveId: 'LIB-PRIM-HANDOFF', kind: 'objective', title: 'Final Delivery', x: 1240, y: 120, body: 'Hand the package to the recipient NPC before the timer.', color: null },
+          S1: { id: 'S1', primitiveId: 'LIB-NAR-001', kind: 'story', title: 'Start Briefing', x: 40, y: 120, body: 'Teams get the mission and meet the trusted contact.', color: null },
+          S2: { id: 'S2', primitiveId: 'LIB-NAR-003', kind: 'story', title: 'Seed of Doubt', x: 340, y: 60, body: 'First clue that the contact is a double agent.', color: null },
+          S3: { id: 'S3', primitiveId: 'LIB-NAR-008', kind: 'story', title: 'Radio Intercept', x: 640, y: 120, body: 'A transmission names a player team as the decoys.', color: null },
+          S4: { id: 'S4', primitiveId: 'LIB-NAR-002', kind: 'story', title: 'The Reveal', x: 940, y: 60, body: 'The contact turns; the real allegiance lands.', color: null },
         },
         edges: [
-          { from: 'S1', to: 'S2', label: 'contract accepted', color: null },
-          { from: 'S2', to: 'S3', label: 'package in hand', color: null },
-          { from: 'S3', to: 'S4', label: 'route confirmed', color: null },
-          { from: 'S4', to: 'S5', label: 'ON fired', color: null },
+          { from: 'S1', to: 'S2', label: 'first clue', color: null },
+          { from: 'S2', to: 'S3', label: 'suspicion grows', color: null },
+          { from: 'S3', to: 'S4', label: 'the turn', color: null },
         ],
       },
-      'LIB-STORY-AMBUSH': {
-        id: 'LIB-STORY-AMBUSH', name: 'Ambush Scenario',
-        description: 'A routine check-in turns hostile: physical challenge, then a twist that reframes who attacked.',
+      'LIB-STORY-COLDCASE': {
+        id: 'LIB-STORY-COLDCASE', name: 'Cold Case',
+        description: 'Investigation arc from a cold open through rumor and testimony to an accusation.',
         estMinutes: 25,
         nodes: {
-          S1: { id: 'S1', primitiveId: 'LIB-PRIM-BRIEF', kind: 'story', title: 'Start Briefing', x: 40, y: 100, body: 'A simple patrol assignment — or so it seems.', color: null },
-          S2: { id: 'S2', primitiveId: 'LIB-PRIM-WAYPT', kind: 'location', title: 'Patrol Waypoint', x: 340, y: 40, body: 'Check-in point deep in the play area.', color: null },
-          S3: { id: 'S3', primitiveId: 'LIB-PRIM-PHYS', kind: 'enemy', title: 'The Ambush', x: 640, y: 100, body: 'NPC crew springs the ambush; evade or stand ground.', color: null },
-          S4: { id: 'S4', primitiveId: 'LIB-PRIM-TWIST', kind: 'story', title: 'False Flag Reveal', x: 940, y: 40, body: 'Evidence on an attacker points to an ally faction.', color: null },
+          S1: { id: 'S1', primitiveId: 'LIB-NAR-004', kind: 'story', title: 'Cold Open', x: 40, y: 100, body: 'The briefing that hides the real stakes.', color: null },
+          S2: { id: 'S2', primitiveId: 'LIB-NAR-006', kind: 'story', title: 'The Rumor', x: 340, y: 40, body: 'A rumor points players toward the truth.', color: null },
+          S3: { id: 'S3', primitiveId: 'LIB-NAR-005', kind: 'story', title: 'Testimony', x: 640, y: 100, body: 'An NPC gives the key testimony — for a price.', color: null },
+          S4: { id: 'S4', primitiveId: 'LIB-NAR-002', kind: 'story', title: 'Accusation', x: 940, y: 40, body: 'The twist that names the culprit.', color: null },
         },
         edges: [
-          { from: 'S1', to: 'S2', label: 'patrol starts', color: null },
-          { from: 'S2', to: 'S3', label: 'ON arrival', color: null },
-          { from: 'S3', to: 'S4', label: 'IF won', color: null },
+          { from: 'S1', to: 'S2', label: 'a lead', color: null },
+          { from: 'S2', to: 'S3', label: 'follow up', color: null },
+          { from: 'S3', to: 'S4', label: 'the case breaks', color: null },
         ],
       },
     },

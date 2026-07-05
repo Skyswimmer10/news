@@ -3,7 +3,11 @@ import { ENTITY_COLORS } from './bits.jsx';
 import { NODE_W } from './FlowCanvas.jsx';
 
 export const structNodeColor = (n, lib) =>
-  n.color || lib.primitives?.[n.primitiveId]?.color || ENTITY_COLORS[n.kind] || '#8B92A6';
+  n.color
+  || lib.narrative?.[n.primitiveId]?.color
+  || lib.mechPrimitives?.[n.primitiveId]?.color
+  || lib.primitives?.[n.primitiveId]?.color // legacy
+  || ENTITY_COLORS[n.kind] || '#8B92A6';
 
 // Auto-generated thumbnail of a story structure's node-graph layout:
 // the real positions, scaled down, nodes as color-coded blocks.

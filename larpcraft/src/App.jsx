@@ -25,8 +25,8 @@ const MANAGE_VIEWS = [
 // The Library, grouped: physical templates, game mechanics, story content.
 const LIB_GROUPS = [
   { id: 'physical', label: 'Physical', color: 'var(--c-item)', colls: ['items', 'locations', 'sensors'] },
-  { id: 'mechanics', label: 'Game Mechanics', color: 'var(--c-mechanic)', colls: ['mechanics'] },
-  { id: 'story', label: 'Story & Narrative', color: 'var(--c-narrative)', colls: ['primitives', 'elements', 'stories'] },
+  { id: 'mechanics', label: 'Game Mechanics', color: 'var(--c-mechanic)', colls: ['mechanics', 'mechPrimitives'] },
+  { id: 'story', label: 'Story & Narrative', color: 'var(--c-narrative)', colls: ['narrative', 'stories'] },
 ];
 
 function Shell() {

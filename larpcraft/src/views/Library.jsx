@@ -3,7 +3,7 @@ import { useLibrary, useLibraryDispatch } from '../state/store.jsx';
 import { Thumb, ENTITY_COLORS, PrimIcon } from '../components/bits.jsx';
 import FlowCanvas from '../components/FlowCanvas.jsx';
 import StructureThumb, { structNodeColor } from '../components/StructureThumb.jsx';
-import { primitiveToStructNode } from '../state/bridge.js';
+import { narrativeToStructNode } from '../state/bridge.js';
 import { LIB_BLANK, LIB_PREFIX } from '../data/seed.js';
 import { genId } from '../data/csvSchemas.js';
 import TypeChips from '../components/TypeChips.jsx';
@@ -12,38 +12,37 @@ const TABS = [
   { id: 'items', label: 'Items & Gadgets', color: 'var(--c-item)', addLabel: '+ New item template' },
   { id: 'locations', label: 'Locations', color: 'var(--c-location)', addLabel: '+ New location template' },
   { id: 'mechanics', label: 'Rules & Mechanics', color: 'var(--c-mechanic)', addLabel: '+ New mechanic' },
+  { id: 'mechPrimitives', label: 'Mechanic Nodes', color: '#A87BF0', addLabel: '+ New mechanic node' },
   { id: 'sensors', label: 'Sensor hardware', color: 'var(--c-sensor)', addLabel: '+ New sensor type' },
-  { id: 'primitives', label: 'Narrative Primitives', color: '#F08CB4', addLabel: '+ New primitive' },
-  { id: 'elements', label: 'Narrative Elements', color: '#E8D25C', addLabel: '+ New element' },
+  { id: 'narrative', label: 'Narrative', color: '#F08CB4', addLabel: '+ New narrative element' },
   { id: 'stories', label: 'Story Structures', color: 'var(--c-narrative)', addLabel: '+ New structure' },
 ];
 
-// Three top-level groups keep the catalogue uncrowded; each sidebar entry
-// shows only its own collections.
+// Three top-level groups keep the catalogue uncrowded. Story & Narrative holds
+// only story content; the mechanic node tree lives under Game Mechanics.
 const GROUP_META = {
   physical: { label: 'Physical', tabs: ['items', 'locations', 'sensors'] },
-  mechanics: { label: 'Game Mechanics', tabs: ['mechanics'] },
-  story: { label: 'Story & Narrative', tabs: ['primitives', 'elements', 'stories'] },
+  mechanics: { label: 'Game Mechanics', tabs: ['mechanics', 'mechPrimitives'] },
+  story: { label: 'Story & Narrative', tabs: ['narrative', 'stories'] },
 };
 
 const CATEGORY_COLORS = ['#F08CB4', '#5CA8F5', '#E0A23C', '#43BF87', '#A87BF0', '#E8D25C', '#3EC6D6', '#E86464'];
 
-// Draggable palette entry: drop onto the structure editor canvas to add a
-// node built from this primitive.
-function PalettePrimitive({ p, onSelect }) {
+// Draggable palette entry (narrative node): drop onto the structure canvas.
+function PaletteNode({ n, onSelect }) {
   return (
     <div className="pnode" draggable
-      onDragStart={(e) => { e.dataTransfer.setData('text/x-palette', p.id); e.dataTransfer.effectAllowed = 'copy'; }}
-      onClick={onSelect} title={`${p.defaultBody} (drag onto the canvas)`}>
-      <PrimIcon icon={p.icon} color={p.color} />
-      <div><b>{p.name}</b><small>~{p.estMinutes} min</small></div>
+      onDragStart={(e) => { e.dataTransfer.setData('text/x-palette', n.id); e.dataTransfer.effectAllowed = 'copy'; }}
+      onClick={onSelect} title={`${n.body || ''} (drag onto the canvas)`}>
+      <PrimIcon icon={n.icon} color={n.color} />
+      <div><b>{n.name}</b><small>{n.category}</small></div>
     </div>
   );
 }
 
-// Editor for one Story Structure: the master template's node graph, globally
-// editable. Every change dispatches to the LIBRARY store, permanently
-// updating the template for future games.
+// Editor for one Story Structure: a pure narrative graph. The palette offers
+// only narrative nodes (strict separation from mechanics). Every change
+// dispatches to the LIBRARY store, updating the master template.
 function StructureEditor({ structure, selection, onSelect, onBack }) {
   const lib = useLibrary();
   const libDispatch = useLibraryDispatch();
@@ -61,10 +60,10 @@ function StructureEditor({ structure, selection, onSelect, onBack }) {
       </div>
       <div className="structeditor">
         <div className="palette">
-          <div className="lab">Narrative Primitives</div>
-          <div className="hint" style={{ marginBottom: 9 }}>Drag onto the canvas to add a node to this template.</div>
-          {Object.values(lib.primitives).map((p) => (
-            <PalettePrimitive key={p.id} p={p} onSelect={() => onSelect({ kind: 'lib-primitives', id: p.id })} />
+          <div className="lab">Narrative nodes</div>
+          <div className="hint" style={{ marginBottom: 9 }}>Story content only. Drag onto the canvas to add a beat.</div>
+          {Object.values(lib.narrative).map((n) => (
+            <PaletteNode key={n.id} n={n} onSelect={() => onSelect({ kind: 'lib-narrative', id: n.id })} />
           ))}
         </div>
         <FlowCanvas
@@ -78,10 +77,10 @@ function StructureEditor({ structure, selection, onSelect, onBack }) {
           }}
           onRemoveEdge={(e) => patch({ edges: structure.edges.filter((x) => !(x.from === e.from && x.to === e.to)) })}
           onSetColor={(id, color) => patch({ nodes: { ...structure.nodes, [id]: { ...structure.nodes[id], color } } })}
-          onDropPalette={(primitiveId, x, y) => {
-            const p = lib.primitives[primitiveId];
-            if (!p) return;
-            const node = primitiveToStructNode(p, structure.nodes, x, y);
+          onDropPalette={(narrativeId, x, y) => {
+            const n = lib.narrative[narrativeId];
+            if (!n) return;
+            const node = narrativeToStructNode(n, structure.nodes, x, y);
             patch({ nodes: { ...structure.nodes, [node.id]: node } });
             onSelect({ kind: 'lib-structnode', id: node.id, storyId: structure.id });
           }}
@@ -101,40 +100,35 @@ function StructureEditor({ structure, selection, onSelect, onBack }) {
         />
       </div>
       <div className="statusbar">
-        <span>Editing the <b>master template</b> — changes apply to future imports · <b>Ctrl+C</b> copies the selected node, <b>Ctrl+V</b> pastes (works across canvases).</span>
+        <span>Editing the <b>master template</b> — pure narrative graph · <b>Ctrl+C</b>/<b>V</b> copy-paste · <b>Delete</b> removes a node.</span>
       </div>
     </div>
   );
 }
 
-// The master database. Two narrative sub-sections: Narrative Primitives
-// (isolated building-block node templates) and Story Structures (saved,
-// editable node graphs assembled from primitives).
 export default function Library({ group = 'physical', selection, onSelect }) {
   const lib = useLibrary();
   const libDispatch = useLibraryDispatch();
   const groupMeta = GROUP_META[group] ?? GROUP_META.physical;
   const [tab, setTab] = useState(groupMeta.tabs[0]);
   const [editingStory, setEditingStory] = useState(null);
-  const [elemFilter, setElemFilter] = useState('all');
+  const [narrFilter, setNarrFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
   const selId = selection?.kind?.startsWith('lib-') ? selection.id : null;
   const pick = (coll, id) => onSelect({ kind: `lib-${coll}`, id });
 
-  // Switching sidebar groups lands on that group's first collection.
   React.useEffect(() => {
     if (!groupMeta.tabs.includes(tab)) { setTab(groupMeta.tabs[0]); setEditingStory(null); }
   }, [group]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // "+ New …" for every library section: create a blank template, select it;
-  // new structures open straight into the graph editor.
   const addNew = () => {
     const id = genId(lib[tab], LIB_PREFIX[tab]);
     let entity = LIB_BLANK[tab](id);
-    if (tab === 'elements') {
-      const etype = elemFilter !== 'all' && lib.elementTypes[elemFilter]
-        ? elemFilter : Object.keys(lib.elementTypes)[0] ?? 'plot-hook';
-      entity = { ...entity, etype };
+    if (tab === 'narrative') {
+      const cat = narrFilter !== 'all' && lib.narrativeCategories[narrFilter]
+        ? narrFilter : Object.keys(lib.narrativeCategories)[0] ?? 'story-beat';
+      const meta = lib.narrativeCategories[cat];
+      entity = { ...entity, category: cat, color: meta?.color ?? entity.color, icon: meta?.icon ?? entity.icon };
     }
     libDispatch({ type: 'ADD_ENTITY', coll: tab, entity });
     pick(tab, id);
@@ -142,28 +136,28 @@ export default function Library({ group = 'physical', selection, onSelect }) {
   };
   const activeTab = TABS.find((t) => t.id === tab) ?? TABS[0];
 
-  // ---- editable element categories ----
+  // ---- editable narrative categories ----
   const addCategory = () => {
-    const label = window.prompt('Name for the new element category:');
+    const label = window.prompt('Name for the new narrative category:');
     if (!label?.trim()) return;
     let key = label.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'category';
-    while (lib.elementTypes[key]) key += '-2';
-    const color = CATEGORY_COLORS[Object.keys(lib.elementTypes).length % CATEGORY_COLORS.length];
-    libDispatch({ type: 'ADD_ENTITY', coll: 'elementTypes', entity: { id: key, label: label.trim(), color } });
-    setElemFilter(key);
+    while (lib.narrativeCategories[key]) key += '-2';
+    const color = CATEGORY_COLORS[Object.keys(lib.narrativeCategories).length % CATEGORY_COLORS.length];
+    libDispatch({ type: 'ADD_ENTITY', coll: 'narrativeCategories', entity: { id: key, label: label.trim(), color, icon: 'flag' } });
+    setNarrFilter(key);
   };
   const deleteCategory = (key) => {
-    const remaining = Object.keys(lib.elementTypes).filter((k) => k !== key);
+    const remaining = Object.keys(lib.narrativeCategories).filter((k) => k !== key);
     if (remaining.length === 0) { window.alert('At least one category must remain.'); return; }
-    const used = Object.values(lib.elements).filter((el) => el.etype === key);
+    const used = Object.values(lib.narrative).filter((n) => n.category === key);
     const fallback = remaining[0];
     const msg = used.length
-      ? `Delete "${lib.elementTypes[key].label}"? ${used.length} element(s) will be moved to "${lib.elementTypes[fallback].label}".`
-      : `Delete the empty category "${lib.elementTypes[key].label}"?`;
+      ? `Delete "${lib.narrativeCategories[key].label}"? ${used.length} item(s) will move to "${lib.narrativeCategories[fallback].label}".`
+      : `Delete the empty category "${lib.narrativeCategories[key].label}"?`;
     if (!window.confirm(msg)) return;
-    used.forEach((el) => libDispatch({ type: 'UPDATE_ENTITY', coll: 'elements', id: el.id, patch: { etype: fallback } }));
-    libDispatch({ type: 'DELETE_ENTITY', coll: 'elementTypes', id: key });
-    if (elemFilter === key) setElemFilter('all');
+    used.forEach((n) => libDispatch({ type: 'UPDATE_ENTITY', coll: 'narrative', id: n.id, patch: { category: fallback } }));
+    libDispatch({ type: 'DELETE_ENTITY', coll: 'narrativeCategories', id: key });
+    if (narrFilter === key) setNarrFilter('all');
   };
 
   if (editingStory && lib.stories[editingStory]) {
@@ -190,7 +184,7 @@ export default function Library({ group = 'physical', selection, onSelect }) {
             <button key={t.id} className={`chip${tab === t.id ? ' on' : ''}`}
               style={tab === t.id ? { background: t.color } : undefined}
               onClick={() => setTab(t.id)}>
-              {t.label} · {Object.keys(lib[t.id]).length}
+              {t.label} · {Object.keys(lib[t.id] ?? {}).length}
             </button>
           );
         })}
@@ -220,8 +214,28 @@ export default function Library({ group = 'physical', selection, onSelect }) {
           {Object.values(lib.mechanics).map((m) => (
             <button key={m.id} className={`librow${selId === m.id ? ' sel' : ''}`} onClick={() => pick('mechanics', m.id)}>
               <span className="sq" style={{ background: ENTITY_COLORS.mechanic }} />
-              <div><b>{m.name}</b><small>{m.summary}</small></div>
+              <div><b>{m.name}</b><small>{m.summary}{m.params?.length ? ` · ${m.params.map((p) => `${p.label} ${p.value}`).join(', ')}` : ''}</small></div>
               <span className="mono dim">{m.id}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {tab === 'mechPrimitives' && (
+        <div className="gallery prim">
+          {Object.values(lib.mechPrimitives).map((p) => (
+            <button key={p.id} className={`primcard${selId === p.id ? ' sel' : ''}`}
+              style={{ borderTopColor: p.color }} onClick={() => pick('mechPrimitives', p.id)}>
+              <div className="primhead">
+                <span className="primic" style={{ background: p.color }}><PrimIcon icon={p.icon} color="#fff" /></span>
+                <b>{p.name}</b>
+              </div>
+              <small>{p.defaultBody}</small>
+              <div className="primmeta">
+                <span className="handle in">{p.inputs.length ? `in: ${p.inputs.join(', ')}` : 'entry point'}</span>
+                <span className="handle out">{p.outputs.length ? `out: ${p.outputs.join(', ')}` : 'terminal'}</span>
+              </div>
+              <div className="primmeta dim mono">{p.baseKind} · ~{p.estMinutes} min · {p.id}</div>
             </button>
           ))}
         </div>
@@ -239,36 +253,16 @@ export default function Library({ group = 'physical', selection, onSelect }) {
         </div>
       )}
 
-      {tab === 'primitives' && (
-        <div className="gallery prim">
-          {Object.values(lib.primitives).map((p) => (
-            <button key={p.id} className={`primcard${selId === p.id ? ' sel' : ''}`}
-              style={{ borderTopColor: p.color }} onClick={() => pick('primitives', p.id)}>
-              <div className="primhead">
-                <span className="primic" style={{ background: p.color }}><PrimIcon icon={p.icon} color="#fff" /></span>
-                <b>{p.name}</b>
-              </div>
-              <small>{p.defaultBody}</small>
-              <div className="primmeta">
-                <span className="handle in">{p.inputs.length ? `in: ${p.inputs.join(', ')}` : 'entry point'}</span>
-                <span className="handle out">{p.outputs.length ? `out: ${p.outputs.join(', ')}` : 'terminal'}</span>
-              </div>
-              <div className="primmeta dim mono">~{p.estMinutes} min · crew {p.crew} · {p.id}</div>
-            </button>
-          ))}
-        </div>
-      )}
-
-      {tab === 'elements' && (
+      {tab === 'narrative' && (
         <div className="elemwrap">
           <div className="toolrow" style={{ paddingTop: 12 }}>
-            <button className={`chip${elemFilter === 'all' ? ' on' : ''}`}
-              style={elemFilter === 'all' ? { background: '#E8D25C', color: '#1A1D26' } : undefined}
-              onClick={() => setElemFilter('all')}>All · {Object.keys(lib.elements).length}</button>
-            {Object.values(lib.elementTypes).map((meta) => (
-              <span key={meta.id} className={`chip cat${elemFilter === meta.id ? ' on' : ''}`}
-                style={elemFilter === meta.id ? { background: meta.color } : undefined}
-                onClick={() => setElemFilter(meta.id)} role="button" tabIndex={0}>
+            <button className={`chip${narrFilter === 'all' ? ' on' : ''}`}
+              style={narrFilter === 'all' ? { background: '#F08CB4' } : undefined}
+              onClick={() => setNarrFilter('all')}>All · {Object.keys(lib.narrative).length}</button>
+            {Object.values(lib.narrativeCategories).map((meta) => (
+              <span key={meta.id} className={`chip cat${narrFilter === meta.id ? ' on' : ''}`}
+                style={narrFilter === meta.id ? { background: meta.color } : undefined}
+                onClick={() => setNarrFilter(meta.id)} role="button" tabIndex={0}>
                 {meta.label}s
                 <button className="x" title={`Delete category "${meta.label}"`}
                   onClick={(e) => { e.stopPropagation(); deleteCategory(meta.id); }}>×</button>
@@ -277,23 +271,23 @@ export default function Library({ group = 'physical', selection, onSelect }) {
             <button className="chip addcat" onClick={addCategory}>+ New category</button>
           </div>
           <div className="gallery elem">
-            {Object.values(lib.elements)
-              .filter((el) => elemFilter === 'all' || el.etype === elemFilter)
-              .map((el) => {
-                const meta = lib.elementTypes[el.etype] ?? { label: el.etype, color: '#8B92A6' };
+            {Object.values(lib.narrative)
+              .filter((n) => narrFilter === 'all' || n.category === narrFilter)
+              .map((n) => {
+                const meta = lib.narrativeCategories[n.category] ?? { label: n.category, color: '#8B92A6' };
                 return (
-                  <button key={el.id} className={`elemcard${selId === el.id ? ' sel' : ''}`}
-                    style={{ borderTopColor: meta.color }} onClick={() => pick('elements', el.id)}>
-                    <span className="etag" style={{ color: meta.color }}>{meta.label}</span>
-                    <b>{el.name}</b>
-                    <small>{el.text}</small>
-                    <div className="primmeta dim mono">{el.tags.map((t) => `#${t}`).join(' ')} · {el.id}</div>
+                  <button key={n.id} className={`elemcard${selId === n.id ? ' sel' : ''}`}
+                    style={{ borderTopColor: n.color || meta.color }} onClick={() => pick('narrative', n.id)}>
+                    <span className="etag" style={{ color: n.color || meta.color }}><PrimIcon icon={n.icon} color={n.color || meta.color} size={12} /> {meta.label}</span>
+                    <b>{n.name}</b>
+                    <small>{n.body}</small>
+                    <div className="primmeta dim mono">{(n.tags || []).map((t) => `#${t}`).join(' ')} · {n.id}</div>
                   </button>
                 );
               })}
-            {Object.values(lib.elements).every((el) => elemFilter !== 'all' && el.etype !== elemFilter) && (
+            {Object.values(lib.narrative).every((n) => narrFilter !== 'all' && n.category !== narrFilter) && (
               <div className="empty" style={{ gridColumn: '1/-1' }}>
-                No elements in this category yet — <b>{activeTab.addLabel}</b> creates one here.
+                Nothing in this category yet — <b>{activeTab.addLabel}</b> creates one here.
               </div>
             )}
           </div>

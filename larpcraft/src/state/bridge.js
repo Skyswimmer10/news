@@ -112,38 +112,37 @@ export function importStory(lib, proj, storyId) {
   return { nodes, edges, createdId: idMap[tplNodes[0].id] };
 }
 
-// A single Narrative Primitive dropped into the active game as one node.
-export function importPrimitive(lib, proj, primitiveId, x = 100, y = 100) {
-  const p = lib.primitives[primitiveId];
+// A single narrative building block dropped into the game as a story node.
+export function importNarrative(lib, proj, narrativeId, x = 100, y = 100) {
+  const n = lib.narrative[narrativeId];
+  if (!n) return null;
+  const id = genId(proj.nodes, `${proj.meta.prefix}-N-`);
+  const node = {
+    id, primitiveId: n.id, kind: 'story', title: n.name,
+    x: Math.round(x), y: Math.round(y), body: n.body || '', color: n.color ?? null,
+    locationId: null, itemId: null, mechanicIds: [], sensorIds: [],
+  };
+  return { nodes: { [id]: node }, createdId: id };
+}
+
+// A single mechanic node type dropped into the game as a node of its baseKind.
+export function importMechPrimitive(lib, proj, primitiveId, x = 100, y = 100) {
+  const p = lib.mechPrimitives[primitiveId];
   if (!p) return null;
   const id = genId(proj.nodes, `${proj.meta.prefix}-N-`);
   const node = {
     id, primitiveId: p.id, kind: p.baseKind, title: p.name,
-    x: Math.round(x), y: Math.round(y), body: p.defaultBody, color: null,
+    x: Math.round(x), y: Math.round(y), body: p.defaultBody || '', color: null,
     locationId: null, itemId: null, mechanicIds: [], sensorIds: [],
   };
   return { nodes: { [id]: node }, createdId: id };
 }
 
-// A single Narrative Element (plot hook, briefing script, bio, rumor, lore)
-// dropped into the game as a ready-made story node carrying its text.
-export function importElement(lib, proj, elementId, x = 100, y = 100) {
-  const el = lib.elements[elementId];
-  if (!el) return null;
-  const id = genId(proj.nodes, `${proj.meta.prefix}-N-`);
-  const node = {
-    id, primitiveId: null, elementId: el.id, kind: 'story', title: el.name,
-    x: Math.round(x), y: Math.round(y), body: el.text, color: null,
-    locationId: null, itemId: null, mechanicIds: [], sensorIds: [],
-  };
-  return { nodes: { [id]: node }, createdId: id };
-}
-
-// Instantiate a primitive as a node INSIDE a story structure (library editor).
-export function primitiveToStructNode(primitive, structNodes, x, y) {
+// Instantiate a narrative node INSIDE a story structure (library editor).
+export function narrativeToStructNode(narrative, structNodes, x, y) {
   const id = genId(structNodes, 'S');
   return {
-    id, primitiveId: primitive.id, kind: primitive.baseKind, title: primitive.name,
-    x: Math.round(x), y: Math.round(y), body: primitive.defaultBody, color: null,
+    id, primitiveId: narrative.id, kind: 'story', title: narrative.name,
+    x: Math.round(x), y: Math.round(y), body: narrative.body || '', color: narrative.color ?? null,
   };
 }

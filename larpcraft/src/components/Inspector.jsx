@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useGame, useDispatch, useLibrary, useLibraryDispatch } from '../state/store.jsx';
 import { resolveNode, itemsAssignedToPlayer, sensorsAssignedToPlayer } from '../state/reducer.js';
-import { importItem, importLocation, importSensor, importStory, importPrimitive, importElement } from '../state/bridge.js';
+import { importItem, importLocation, importSensor, importStory, importNarrative, importMechPrimitive } from '../state/bridge.js';
 import { Chip, SectionLabel, BuildFlow, Pill, ENTITY_COLORS } from './bits.jsx';
 import ImageUploader from './ImageUploader.jsx';
 
@@ -254,7 +254,7 @@ function NodePanel({ node }) {
   const lib = useLibrary();
   const dispatch = useDispatch();
   const upd = (patch) => dispatch({ type: 'UPDATE_ENTITY', coll: 'nodes', id: node.id, patch });
-  const prim = node.primitiveId ? lib.primitives[node.primitiveId] : null;
+  const prim = node.primitiveId ? (lib.narrative[node.primitiveId] || lib.mechPrimitives[node.primitiveId]) : null;
   const color = node.color || prim?.color || ENTITY_COLORS[node.kind] || '#8B92A6';
   const connections = s.edges.filter((e) => e.from === node.id || e.to === node.id);
   return (
@@ -457,17 +457,18 @@ function LibStoryPanel({ template }) {
   );
 }
 
-function LibPrimitivePanel({ template }) {
+// Mechanic node type (Game Mechanics node tree) — sensor/physical/task nodes.
+function LibMechPrimitivePanel({ template }) {
   const libDispatch = useLibraryDispatch();
-  const upd = (patch) => libDispatch({ type: 'UPDATE_ENTITY', coll: 'primitives', id: template.id, patch });
+  const upd = (patch) => libDispatch({ type: 'UPDATE_ENTITY', coll: 'mechPrimitives', id: template.id, patch });
   return (
     <>
       <TemplateBadge />
       <div className="ihead">
         <div className="ihrow"><span className="sq big" style={{ background: template.color }} /><h3>{template.name}</h3></div>
-        <div className="sub mono">{template.id} · narrative primitive · {template.baseKind}</div>
+        <div className="sub mono">{template.id} · mechanic node · {template.baseKind}</div>
       </div>
-      <ImportButton build={(l, p) => importPrimitive(l, p, template.id)} label="Add node to game canvas" />
+      <ImportButton build={(l, p) => importMechPrimitive(l, p, template.id)} label="Add node to game canvas" />
       <TextField label="Name" value={template.name} onCommit={(v) => upd({ name: v })} />
       <TextField label="Default description" textarea value={template.defaultBody} onCommit={(v) => upd({ defaultBody: v })} />
       <div className="isect">
@@ -491,29 +492,34 @@ function LibPrimitivePanel({ template }) {
   );
 }
 
-function LibElementPanel({ template }) {
+// Unified narrative building block (story-only): editable content + import.
+function LibNarrativePanel({ template }) {
   const lib = useLibrary();
   const libDispatch = useLibraryDispatch();
-  const upd = (patch) => libDispatch({ type: 'UPDATE_ENTITY', coll: 'elements', id: template.id, patch });
-  const meta = lib.elementTypes[template.etype] ?? { label: template.etype, color: '#8B92A6' };
+  const upd = (patch) => libDispatch({ type: 'UPDATE_ENTITY', coll: 'narrative', id: template.id, patch });
+  const meta = lib.narrativeCategories[template.category] ?? { label: template.category, color: '#8B92A6' };
+  const color = template.color || meta.color;
   return (
     <>
       <TemplateBadge />
       <div className="ihead">
-        <div className="ihrow"><span className="sq big" style={{ background: meta.color }} /><h3>{template.name}</h3></div>
-        <div className="sub mono">{template.id} · narrative element · {meta.label}</div>
+        <div className="ihrow"><span className="sq big" style={{ background: color }} /><h3>{template.name}</h3></div>
+        <div className="sub mono">{template.id} · narrative · {meta.label}</div>
       </div>
-      <ImportButton build={(l, p) => importElement(l, p, template.id)} label="Add as story node in game" />
+      <ImportButton build={(l, p) => importNarrative(l, p, template.id)} label="Add as story node in game" />
       <TextField label="Name" value={template.name} onCommit={(v) => upd({ name: v })} />
       <div className="isect">
         <SectionLabel>Category</SectionLabel>
-        <select className="field-input" value={template.etype} onChange={(e) => upd({ etype: e.target.value })}>
-          {Object.values(lib.elementTypes).map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
-          {!lib.elementTypes[template.etype] && <option value={template.etype}>{template.etype} (deleted)</option>}
+        <select className="field-input" value={template.category} onChange={(e) => {
+          const m = lib.narrativeCategories[e.target.value];
+          upd({ category: e.target.value, color: m?.color ?? template.color, icon: m?.icon ?? template.icon });
+        }}>
+          {Object.values(lib.narrativeCategories).map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+          {!lib.narrativeCategories[template.category] && <option value={template.category}>{template.category} (deleted)</option>}
         </select>
       </div>
-      <TextField label="Text · the element itself" textarea value={template.text} onCommit={(v) => upd({ text: v })} />
-      <TextField label="Tags (comma separated)" value={template.tags.join(', ')}
+      <TextField label="Text · the narrative itself" textarea value={template.body} onCommit={(v) => upd({ body: v })} />
+      <TextField label="Tags (comma separated)" value={(template.tags || []).join(', ')}
         onCommit={(v) => upd({ tags: v.split(',').map((t) => t.trim()).filter(Boolean) })} />
     </>
   );
@@ -530,7 +536,7 @@ function LibStructNodePanel({ storyId, nodeId }) {
     type: 'UPDATE_ENTITY', coll: 'stories', id: storyId,
     patch: { nodes: { ...st.nodes, [nodeId]: { ...n, ...patch } } },
   });
-  const prim = n.primitiveId ? lib.primitives[n.primitiveId] : null;
+  const prim = n.primitiveId ? (lib.narrative[n.primitiveId] || lib.mechPrimitives[n.primitiveId]) : null;
   return (
     <>
       <TemplateBadge />
@@ -571,8 +577,8 @@ export default function Inspector({ selection, onSelect }) {
   else if (kind === 'lib-mechanics' && lib.mechanics[id]) body = <LibMechanicPanel template={lib.mechanics[id]} />;
   else if (kind === 'lib-sensors' && lib.sensors[id]) body = <LibSensorPanel template={lib.sensors[id]} />;
   else if (kind === 'lib-stories' && lib.stories[id]) body = <LibStoryPanel template={lib.stories[id]} />;
-  else if (kind === 'lib-primitives' && lib.primitives[id]) body = <LibPrimitivePanel template={lib.primitives[id]} />;
-  else if (kind === 'lib-elements' && lib.elements[id]) body = <LibElementPanel template={lib.elements[id]} />;
+  else if (kind === 'lib-mechPrimitives' && lib.mechPrimitives[id]) body = <LibMechPrimitivePanel template={lib.mechPrimitives[id]} />;
+  else if (kind === 'lib-narrative' && lib.narrative[id]) body = <LibNarrativePanel template={lib.narrative[id]} />;
   else if (kind === 'lib-structnode') body = <LibStructNodePanel storyId={selection.storyId} nodeId={id} />;
   else if (kind === 'node') {
     const r = resolveNode(s, lib, id);
