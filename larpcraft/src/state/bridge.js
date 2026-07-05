@@ -59,7 +59,7 @@ export function importLocation(lib, proj, templateId) {
   const id = genId(proj.locations, `${proj.meta.prefix}-LOC-`);
   const location = {
     id, templateId: t.id, name: t.name, zone: '',
-    notes: t.notes, safety: t.safety, image: t.image ?? null, sensorIds: [],
+    notes: t.notes, safety: t.safety, image: t.image ?? null, schematic: null, sensorIds: [],
     mapKind: 'schematic', osm: { lat: 56.9496, lon: 24.1052, zoom: 16 }, markers: [], arrows: [],
   };
   return { locations: { [id]: location }, createdId: id };

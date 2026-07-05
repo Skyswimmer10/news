@@ -104,6 +104,8 @@ export default function ScenarioFlow({ selection, onSelect }) {
           onConnect={(from, to) => dispatch({ type: 'ADD_EDGE', from, to, color: nodeColor(s.nodes[from]) })}
           onRemoveEdge={(e) => dispatch({ type: 'REMOVE_EDGE', from: e.from, to: e.to })}
           onSetColor={(id, color) => dispatch({ type: 'UPDATE_ENTITY', coll: 'nodes', id, patch: { color } })}
+          onDeleteNode={(id) => { dispatch({ type: 'DELETE_NODE', nodeId: id }); onSelect(null); }}
+          onEditEdge={(e, label) => dispatch({ type: 'UPDATE_EDGE', from: e.from, to: e.to, patch: { label } })}
           onPasteNode={(p) => {
             const id = genId(s.nodes, `${s.meta.prefix}-N-`);
             dispatch({
@@ -126,7 +128,7 @@ export default function ScenarioFlow({ selection, onSelect }) {
         />
       )}
       <div className="statusbar">
-        <span>Drag to arrange · drag the <b>○ port</b> to connect · <b>■ swatch</b> recolors · <b>Ctrl+C</b> copies the selected node, <b>Ctrl+V</b> pastes.</span>
+        <span>Drag to arrange · <b>○ port</b> connects · <b>■ swatch</b> recolors · click a connection's label to edit it · <b>Ctrl+C/V</b> copy-paste · <b>Delete</b> removes the selected node.</span>
       </div>
       {importing && <StructureImportModal onClose={() => setImporting(false)}
         onImported={(id) => { setImporting(false); onSelect({ kind: 'node', id }); }} />}

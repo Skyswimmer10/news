@@ -11,7 +11,7 @@ export default function CsvButtons({ coll }) {
   const lib = useLibrary();
   // Schemas validate references against a merged view: instances (locations,
   // sensors) come from the active game, rules & mechanics from the library.
-  const s = { ...proj, mechanics: lib.mechanics };
+  const s = { ...proj, mechanics: lib.mechanics, itemTypes: lib.itemTypes };
   const dispatch = useDispatch();
   const fileRef = useRef(null);
   const [msg, setMsg] = useState(null);

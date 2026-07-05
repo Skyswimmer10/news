@@ -10,7 +10,9 @@ export default function ProjectMenu() {
   const dispatch = useDispatch();
   const [open, setOpen] = useState(false);
   const fileRef = useRef(null);
+  const heroRef = useRef(null);
   const rootRef = useRef(null);
+  const hero = proj.meta.hero ?? { image: null, opacity: 0.25 };
 
   useEffect(() => {
     if (!open) return;
@@ -57,6 +59,17 @@ export default function ProjectMenu() {
     dispatch({ type: 'RESET', seed: makeEmptyProject('No game open') });
   });
 
+  // Per-game hero backdrop: an image shown behind the workspace.
+  async function setHeroImage(file) {
+    if (!file || !file.type.startsWith('image/')) return;
+    const reader = new FileReader();
+    reader.onload = () => dispatch({
+      type: 'SET_META',
+      patch: { hero: { image: { kind: 'photo', name: file.name, dataUrl: reader.result }, opacity: hero.opacity ?? 0.25 } },
+    });
+    reader.readAsDataURL(file);
+  }
+
   return (
     <div className="filemenu" ref={rootRef}>
       <button className={`menubtn${open ? ' on' : ''}`} onClick={() => setOpen(!open)}>File</button>
@@ -67,11 +80,25 @@ export default function ProjectMenu() {
           <button onClick={doSave}>Save game as JSON</button>
           <button onClick={doRename}>Rename game…</button>
           <div className="menusep" />
+          <button onClick={() => heroRef.current?.click()}>{hero.image ? 'Replace game backdrop…' : 'Set game backdrop…'}</button>
+          {hero.image && (
+            <>
+              <div className="menuslider">
+                <span>Backdrop opacity · {Math.round((hero.opacity ?? 0.25) * 100)}%</span>
+                <input type="range" min="5" max="70" value={Math.round((hero.opacity ?? 0.25) * 100)}
+                  onChange={(e) => dispatch({ type: 'SET_META', patch: { hero: { ...hero, opacity: +e.target.value / 100 } } })} />
+              </div>
+              <button onClick={() => dispatch({ type: 'SET_META', patch: { hero: { image: null, opacity: hero.opacity } } })}>Remove backdrop</button>
+            </>
+          )}
+          <div className="menusep" />
           <button onClick={doClose}>Close game</button>
         </div>
       )}
       <input ref={fileRef} hidden type="file" accept=".json,application/json"
         onChange={(e) => { const f = e.target.files?.[0]; if (f) openFile(f); e.target.value = ''; }} />
+      <input ref={heroRef} hidden type="file" accept="image/*"
+        onChange={(e) => { setHeroImage(e.target.files?.[0]); e.target.value = ''; }} />
     </div>
   );
 }

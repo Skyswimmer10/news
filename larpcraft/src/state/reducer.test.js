@@ -122,6 +122,27 @@ describe('scenario graph editing', () => {
     expect(s.edges.length).toBe(before - 1);
   });
 
+  it('DELETE_NODE removes the node and every edge touching it', () => {
+    const s = reducer(seed(), { type: 'DELETE_NODE', nodeId: 'N-KEY' });
+    expect(s.nodes['N-KEY']).toBeUndefined();
+    expect(s.edges.some((e) => e.from === 'N-KEY' || e.to === 'N-KEY')).toBe(false);
+    expect(s.edges.length).toBe(seed().edges.length - 3); // N-KEY had 1 in + 2 out
+  });
+
+  it('UPDATE_EDGE edits a connection label', () => {
+    const s = reducer(seed(), { type: 'UPDATE_EDGE', from: 'N-KEY', to: 'N-GATE', patch: { label: 'WHEN both keys held' } });
+    expect(s.edges.find((e) => e.from === 'N-KEY' && e.to === 'N-GATE').label).toBe('WHEN both keys held');
+  });
+
+  it('SET_META stores the per-game hero backdrop; SET_IMAGE respects field', () => {
+    let s = reducer(seed(), { type: 'SET_META', patch: { hero: { image: { kind: 'photo', name: 'bg.jpg', dataUrl: 'data:x' }, opacity: 0.4 } } });
+    expect(s.meta.hero.opacity).toBe(0.4);
+    expect(s.meta.name).toBe('Operation Chimera'); // merge, not replace
+    s = reducer(s, { type: 'SET_IMAGE', coll: 'locations', id: 'LOC-S7', field: 'schematic', image: { kind: 'photo', name: 'plan.png', dataUrl: 'data:y' } });
+    expect(s.locations['LOC-S7'].schematic.name).toBe('plan.png');
+    expect(s.locations['LOC-S7'].image).toBeNull(); // cover untouched
+  });
+
   it('node drag position and color pick persist via UPDATE_ENTITY', () => {
     let s = reducer(seed(), { type: 'UPDATE_ENTITY', coll: 'nodes', id: 'N-BRIEF', patch: { x: 500, y: 250 } });
     s = reducer(s, { type: 'UPDATE_ENTITY', coll: 'nodes', id: 'N-BRIEF', patch: { color: '#E8D25C' } });

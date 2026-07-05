@@ -88,6 +88,13 @@ function ItemPanel({ item, viaNode }) {
 
       <TextField label="Item name" value={item.name} onCommit={(v) => upd({ name: v })} />
       <div className="isect">
+        <SectionLabel>Type</SectionLabel>
+        <select className="field-input" value={item.type} onChange={(e) => upd({ type: e.target.value })}>
+          {Object.values(lib.itemTypes).map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
+          {!lib.itemTypes[item.type] && <option value={item.type}>{item.type} (deleted type)</option>}
+        </select>
+      </div>
+      <div className="isect">
         <SectionLabel>Build status</SectionLabel>
         <BuildFlow value={item.buildStatus} onChange={(v) => upd({ buildStatus: v })} />
       </div>
@@ -177,9 +184,13 @@ function LocationPanel({ location, viaNode }) {
       )}
       <InstanceBadge templateId={location.templateId} />
       <div className="ihead">
-        <ImageUploader coll="locations" entity={location} />
+        <ImageUploader coll="locations" entity={location} label="Cover image" />
         <div className="ihrow"><h3>{location.name}</h3></div>
         <div className="sub mono">{location.id}{location.zone && ` · ${location.zone}`}</div>
+      </div>
+      <div className="isect">
+        <SectionLabel>Room schematic · map base layer</SectionLabel>
+        <ImageUploader coll="locations" entity={location} field="schematic" label="Room schematic" />
       </div>
       <TextField label="Location name" value={location.name} onCommit={(v) => upd({ name: v })} />
       <TextField label="Zone / act" value={location.zone} onCommit={(v) => upd({ zone: v })} />
@@ -256,6 +267,10 @@ function NodePanel({ node }) {
       <TextField label="Node title" value={node.title} onCommit={(v) => upd({ title: v })} />
       <TextField label="Notes" textarea value={node.body} onCommit={(v) => upd({ body: v })} />
       <div className="isect">
+        <SectionLabel>Node image · optional</SectionLabel>
+        <ImageUploader coll="nodes" entity={node} label="Node image" />
+      </div>
+      <div className="isect">
         <SectionLabel>Node color</SectionLabel>
         <div className="chips">
           {NODE_SWATCHES.map((c) => (
@@ -309,6 +324,13 @@ function LibItemPanel({ template }) {
       </div>
       <ImportButton build={(l, p) => importItem(l, p, template.id)} />
       <TextField label="Name" value={template.name} onCommit={(v) => upd({ name: v })} />
+      <div className="isect">
+        <SectionLabel>Type</SectionLabel>
+        <select className="field-input" value={template.type} onChange={(e) => upd({ type: e.target.value })}>
+          {Object.values(lib.itemTypes).map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
+          {!lib.itemTypes[template.type] && <option value={template.type}>{template.type} (deleted type)</option>}
+        </select>
+      </div>
       <TextField label="Default lore / description" textarea value={template.description} onCommit={(v) => upd({ description: v })} />
       <TextField label="Base construction · crew only" textarea value={template.propNotes} onCommit={(v) => upd({ propNotes: v })} />
       <div className="isect">
@@ -502,6 +524,10 @@ function LibStructNodePanel({ storyId, nodeId }) {
       </div>
       <TextField label="Node title" value={n.title} onCommit={(v) => upd({ title: v })} />
       <TextField label="Notes" textarea value={n.body} onCommit={(v) => upd({ body: v })} />
+      <div className="isect">
+        <SectionLabel>Node image · optional</SectionLabel>
+        <ImageUploader entity={n} label="Node image" onImage={(img) => upd({ image: img })} />
+      </div>
       {prim && (
         <div className="isect">
           <SectionLabel>Built from primitive</SectionLabel>

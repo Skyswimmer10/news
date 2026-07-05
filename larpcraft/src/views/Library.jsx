@@ -6,6 +6,7 @@ import StructureThumb, { structNodeColor } from '../components/StructureThumb.js
 import { primitiveToStructNode } from '../state/bridge.js';
 import { LIB_BLANK, LIB_PREFIX } from '../data/seed.js';
 import { genId } from '../data/csvSchemas.js';
+import TypeChips from '../components/TypeChips.jsx';
 
 const TABS = [
   { id: 'items', label: 'Items & Gadgets', color: 'var(--c-item)', addLabel: '+ New item template' },
@@ -86,10 +87,17 @@ function StructureEditor({ structure, selection, onSelect, onBack }) {
           }}
           onPasteNode={(p) => {
             const id = genId(structure.nodes, 'S');
-            const node = { id, primitiveId: p.primitiveId ?? null, kind: p.kind, title: p.title, x: p.x, y: p.y, body: p.body, color: p.color ?? null };
+            const node = { id, primitiveId: p.primitiveId ?? null, kind: p.kind, title: p.title, x: p.x, y: p.y, body: p.body, color: p.color ?? null, image: p.image ?? null };
             patch({ nodes: { ...structure.nodes, [id]: node } });
             onSelect({ kind: 'lib-structnode', id, storyId: structure.id });
           }}
+          onDeleteNode={(id) => {
+            const nodes = { ...structure.nodes };
+            delete nodes[id];
+            patch({ nodes, edges: structure.edges.filter((e) => e.from !== id && e.to !== id) });
+            onSelect(null);
+          }}
+          onEditEdge={(e, label) => patch({ edges: structure.edges.map((x) => (x.from === e.from && x.to === e.to ? { ...x, label } : x)) })}
         />
       </div>
       <div className="statusbar">
@@ -109,6 +117,7 @@ export default function Library({ group = 'physical', selection, onSelect }) {
   const [tab, setTab] = useState(groupMeta.tabs[0]);
   const [editingStory, setEditingStory] = useState(null);
   const [elemFilter, setElemFilter] = useState('all');
+  const [typeFilter, setTypeFilter] = useState('all');
   const selId = selection?.kind?.startsWith('lib-') ? selection.id : null;
   const pick = (coll, id) => onSelect({ kind: `lib-${coll}`, id });
 
@@ -187,9 +196,14 @@ export default function Library({ group = 'physical', selection, onSelect }) {
         })}
       </div>
 
+      {tab === 'items' && (
+        <div className="toolrow" style={{ paddingBottom: 12 }}>
+          <TypeChips value={typeFilter} onChange={setTypeFilter} totalLabel={`All types · ${Object.keys(lib.items).length}`} />
+        </div>
+      )}
       {(tab === 'items' || tab === 'locations') && (
         <div className={`gallery${tab === 'locations' ? ' loc' : ''}`}>
-          {Object.values(lib[tab]).map((t) => (
+          {Object.values(lib[tab]).filter((t) => tab !== 'items' || typeFilter === 'all' || t.type === typeFilter).map((t) => (
             <figure key={t.id} className={`card lib${selId === t.id ? ' sel' : ''}`} onClick={() => pick(tab, t.id)}>
               <div className="thumb"><Thumb image={t.image} type={t.type || 'location'} /></div>
               <figcaption>

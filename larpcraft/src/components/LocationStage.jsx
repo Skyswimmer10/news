@@ -221,9 +221,9 @@ export default function LocationStage({ location, onBack, onSelect }) {
         >
           {location.mapKind === 'osm'
             ? <OsmLayer osm={location.osm} blocked={tilesBlocked} onBlocked={() => setTilesBlocked(true)} />
-            : location.image?.dataUrl
-              ? <img className="schematic" src={location.image.dataUrl} alt="" draggable={false} />
-              : <div className="schematic empty"><b>No schematic uploaded</b><span>Add a floor plan / room sketch in the panel on the right — markers and arrows work meanwhile.</span></div>}
+            : location.schematic?.dataUrl
+              ? <img className="schematic" src={location.schematic.dataUrl} alt="" draggable={false} />
+              : <div className="schematic empty"><b>No schematic uploaded</b><span>Add a floor plan under "Room schematic" in the panel on the right — the cover image is separate. Markers and arrows work meanwhile.</span></div>}
 
           <svg className="stagesvg" viewBox={`0 0 ${STAGE_W} ${STAGE_H}`} preserveAspectRatio="none">
             {location.arrows.map((a) => (

@@ -11,8 +11,15 @@
 //      game-state fields (build status, availability, placement, assignment,
 //      sensor battery) · edits affect only this game
 
-export const LIB_REV = 4;
-export const SEED_REV = 5;
+export const LIB_REV = 5;
+export const SEED_REV = 6;
+
+// Default item types — seeds the editable lib.itemTypes collection.
+export const DEFAULT_ITEM_TYPES = {
+  artifact: { id: 'artifact', label: 'Artifact', color: '#E0A23C' },
+  gadget: { id: 'gadget', label: 'Gadget', color: '#3EC6D6' },
+  consumable: { id: 'consumable', label: 'Consumable', color: '#E88F8F' },
+};
 
 // Location map stage: coordinates for markers/arrows live in a fixed 160×90
 // space (16:9) so they stay put on any screen size, over either base layer
@@ -102,7 +109,9 @@ export function makeLibrarySeed() {
       'LIB-PRIM-TIMER': { id: 'LIB-PRIM-TIMER', name: 'Countdown Pressure', baseKind: 'mechanic', color: '#E8D25C', icon: 'clock', inputs: ['start'], outputs: ['expired'], defaultBody: 'Visible countdown; expiry punishes or escalates.', estMinutes: 15, crew: 0 },
     },
 
-    // Editable element categories (add/delete in the Narrative Elements tab).
+    // Editable type systems: both live in the Library so they persist across
+    // games. Add/delete from the Items and Narrative Elements tabs.
+    itemTypes: { ...DEFAULT_ITEM_TYPES },
     elementTypes: { ...DEFAULT_ELEMENT_TYPES },
 
     // NARRATIVE ELEMENTS: single, self-contained story pieces — hooks, scripts,
@@ -161,7 +170,9 @@ export function makeLibrarySeed() {
 export function makeEmptyProject(name = 'Untitled game') {
   return {
     rev: SEED_REV,
-    meta: { name, prefix: 'GAME', createdAt: Date.now() },
+    // hero: per-game backdrop image shown behind the workspace, with
+    // adjustable opacity (File menu → Set game backdrop…).
+    meta: { name, prefix: 'GAME', createdAt: Date.now(), hero: { image: null, opacity: 0.25 } },
     items: {}, locations: {}, sensors: {}, nodes: {}, edges: [], teams: {}, players: {},
   };
 }
@@ -170,7 +181,7 @@ export function makeEmptyProject(name = 'Untitled game') {
 export function makeProjectSeed() {
   return {
     rev: SEED_REV,
-    meta: { name: 'Operation Chimera', prefix: 'CHM', createdAt: Date.now() },
+    meta: { name: 'Operation Chimera', prefix: 'CHM', createdAt: Date.now(), hero: { image: null, opacity: 0.25 } },
 
     // Sensor hardware INSTANCES: template + game state (status, placement,
     // assignment, battery).
@@ -187,7 +198,7 @@ export function makeProjectSeed() {
       'LOC-S7': {
         id: 'LOC-S7', templateId: 'LIB-LOC-001', name: 'Sector 7 Warehouse', zone: 'Act 1',
         notes: 'Main quest area. Two patrol routes, locker corridor, marked safety zone.',
-        safety: 'Fire exits east + west. No running on the mezzanine.', image: null,
+        safety: 'Fire exits east + west. No running on the mezzanine.', image: null, schematic: null,
         sensorIds: ['RFID-07', 'NFC-03', 'MOT-04'],
         mapKind: 'schematic', osm: { ...DEFAULT_OSM },
         markers: [
@@ -205,13 +216,13 @@ export function makeProjectSeed() {
       'LOC-S8': {
         id: 'LOC-S8', templateId: 'LIB-LOC-002', name: 'Sector 8 Gate', zone: 'Act 2',
         notes: 'Locked until quest flag key_obtained.', safety: 'Gate is heavy — crew operates it, never players.',
-        image: null, sensorIds: ['PRX-02'],
+        image: null, schematic: null, sensorIds: ['PRX-02'],
         mapKind: 'osm', osm: { ...DEFAULT_OSM },
         markers: [{ id: 'M1', kind: 'sensor', refId: 'PRX-02', x: 80, y: 45 }],
         arrows: [],
       },
-      'LOC-COMMS': { id: 'LOC-COMMS', templateId: 'LIB-LOC-003', name: 'Comms Bench', zone: 'Act 2', notes: 'Decryption puzzle station with cipher button box.', safety: 'Cable run taped down; check before game.', image: null, sensorIds: ['BTN-11'], ...locationMapDefaults() },
-      'LOC-MED': { id: 'LOC-MED', templateId: 'LIB-LOC-004', name: 'Med Bay (safe zone)', zone: 'All acts', notes: 'Out-of-game rest area + revive mechanic station.', safety: 'Always out-of-game. Real first aid kit lives here.', image: null, sensorIds: [], ...locationMapDefaults() },
+      'LOC-COMMS': { id: 'LOC-COMMS', templateId: 'LIB-LOC-003', name: 'Comms Bench', zone: 'Act 2', notes: 'Decryption puzzle station with cipher button box.', safety: 'Cable run taped down; check before game.', image: null, schematic: null, sensorIds: ['BTN-11'], ...locationMapDefaults() },
+      'LOC-MED': { id: 'LOC-MED', templateId: 'LIB-LOC-004', name: 'Med Bay (safe zone)', zone: 'All acts', notes: 'Out-of-game rest area + revive mechanic station.', safety: 'Always out-of-game. Real first aid kit lives here.', image: null, schematic: null, sensorIds: [], ...locationMapDefaults() },
     },
 
     // Item INSTANCES: template fields copied at import time + game state.

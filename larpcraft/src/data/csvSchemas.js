@@ -38,9 +38,11 @@ export const CSV_SCHEMAS = {
       sensorReqs: i.sensorReqs.map((r) => (r.note ? `${r.sensorId}:${r.note}` : r.sensorId)).join(';'),
     })),
     fromRow: (row, s, warn) => {
+      const typeKeys = s.itemTypes ? Object.keys(s.itemTypes) : ITEM_TYPES;
+      const typeFallback = typeKeys.includes('gadget') ? 'gadget' : typeKeys[0];
       const p = {
         name: row.name || 'Unnamed item',
-        type: pickEnum(row.type, ITEM_TYPES, 'gadget', warn, 'type'),
+        type: pickEnum(row.type, typeKeys, typeFallback, warn, 'type'),
         buildStatus: pickEnum(row.buildStatus, BUILD, 'concept', warn, 'buildStatus'),
         availability: pickEnum(row.availability, AVAIL, 'ready', warn, 'availability'),
         description: row.description ?? '',
@@ -64,7 +66,7 @@ export const CSV_SCHEMAS = {
     filename: 'locations.csv',
     headers: ['id', 'name', 'zone', 'notes', 'safety', 'sensorIds'],
     newId: (s) => genId(s.locations, 'LOC-N-'),
-    blank: (id) => ({ id, templateId: null, name: 'New location', zone: '', notes: '', safety: '', image: null, sensorIds: [], mapKind: 'schematic', osm: { lat: 56.9496, lon: 24.1052, zoom: 16 }, markers: [], arrows: [] }),
+    blank: (id) => ({ id, templateId: null, name: 'New location', zone: '', notes: '', safety: '', image: null, sensorIds: [], schematic: null, mapKind: 'schematic', osm: { lat: 56.9496, lon: 24.1052, zoom: 16 }, markers: [], arrows: [] }),
     toRows: (s) => Object.values(s.locations).map((l) => ({ ...l, sensorIds: l.sensorIds.join(';') })),
     fromRow: (row, s, warn) => ({
       name: row.name || 'Unnamed location',
@@ -101,7 +103,7 @@ export const CSV_SCHEMAS = {
     filename: 'quest-nodes.csv',
     headers: ['id', 'kind', 'title', 'x', 'y', 'color', 'body', 'itemId', 'locationId', 'connectsTo'],
     newId: (s) => genId(s.nodes, 'N-'),
-    blank: (id) => ({ id, kind: 'story', title: 'New story beat', x: 80, y: 80, body: '', color: null, locationId: null, itemId: null, mechanicIds: [], sensorIds: [] }),
+    blank: (id) => ({ id, kind: 'story', title: 'New story beat', x: 80, y: 80, body: '', color: null, image: null, locationId: null, itemId: null, mechanicIds: [], sensorIds: [] }),
     toRows: (s) => Object.values(s.nodes).map((n) => ({
       ...n,
       color: n.color ?? '',

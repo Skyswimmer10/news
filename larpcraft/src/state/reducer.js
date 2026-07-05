@@ -124,6 +124,26 @@ export function reducer(state, action) {
       return { ...state, meta: { ...state.meta, name: action.name } };
     }
 
+    // Per-game settings (hero backdrop image + opacity, etc.).
+    case 'SET_META': {
+      return { ...state, meta: { ...state.meta, ...action.patch } };
+    }
+
+    // Delete a node and every connection touching it.
+    case 'DELETE_NODE': {
+      const { nodeId } = action;
+      if (!state.nodes[nodeId]) return state;
+      const nodes = { ...state.nodes };
+      delete nodes[nodeId];
+      return { ...state, nodes, edges: state.edges.filter((e) => e.from !== nodeId && e.to !== nodeId) };
+    }
+
+    // Edit a connection's label (or other fields).
+    case 'UPDATE_EDGE': {
+      const { from, to, patch } = action;
+      return { ...state, edges: state.edges.map((e) => (e.from === from && e.to === to ? { ...e, ...patch } : e)) };
+    }
+
     // ---- scenario graph editing ----
     case 'ADD_NODE': {
       const n = action.node;
@@ -143,12 +163,13 @@ export function reducer(state, action) {
       return { ...state, edges: state.edges.filter((e) => !(e.from === action.from && e.to === action.to)) };
     }
 
-    // Uploaded file becomes the primary thumbnail for the item / location.
+    // Uploaded file lands on the entity's image field — `field` picks which
+    // one (default cover 'image'; locations also have 'schematic').
     case 'SET_IMAGE': {
-      const { coll, id, image } = action; // image: { dataUrl?, kind, name } | null
+      const { coll, id, image, field = 'image' } = action;
       const entity = state[coll][id];
       if (!entity) return state;
-      return { ...state, [coll]: { ...state[coll], [id]: { ...entity, image } } };
+      return { ...state, [coll]: { ...state[coll], [id]: { ...entity, [field]: image } } };
     }
 
     default:

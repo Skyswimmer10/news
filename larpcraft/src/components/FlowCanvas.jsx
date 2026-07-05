@@ -18,26 +18,31 @@ const SWATCHES = ['#5CA8F5', '#43BF87', '#E0A23C', '#E86464', '#A87BF0', '#3EC6D
 export default function FlowCanvas({
   nodes, edges, selId, colorOf,
   onSelect, onMove, onConnect, onRemoveEdge, onSetColor, onDropPalette,
-  onPasteNode, renderExtra,
+  onPasteNode, onDeleteNode, onEditEdge, renderExtra,
 }) {
   const canvasRef = useRef(null);
   const dragRef = useRef(null);
   const [linkDrag, setLinkDrag] = useState(null);
   const [pickerFor, setPickerFor] = useState(null);
 
-  // Ctrl/Cmd+C copies the selected node; Ctrl/Cmd+V (or Ctrl+P) pastes a
-  // duplicate. Skipped while typing in a field or copying selected text.
+  // Keyboard: Ctrl/Cmd+C copies the selected node, Ctrl/Cmd+V (or Ctrl+P)
+  // pastes a duplicate, Delete/Backspace removes the selected node with its
+  // connections. All skipped while typing in a field or copying real text.
   useEffect(() => {
-    if (!onPasteNode) return undefined;
     const onKey = (e) => {
-      if (!(e.ctrlKey || e.metaKey)) return;
       if (e.target.closest?.('input, textarea, select, [contenteditable="true"]')) return;
+      if ((e.key === 'Delete' || e.key === 'Backspace') && onDeleteNode && selId && nodes[selId]) {
+        e.preventDefault();
+        onDeleteNode(selId);
+        return;
+      }
+      if (!(e.ctrlKey || e.metaKey) || !onPasteNode) return;
       const k = e.key.toLowerCase();
       if (k === 'c') {
         if (window.getSelection()?.toString()) return; // real text copy wins
         const n = selId && nodes[selId];
         if (!n) return;
-        nodeClipboard = { kind: n.kind, title: n.title, body: n.body ?? '', color: n.color ?? null, primitiveId: n.primitiveId ?? null, x: n.x, y: n.y };
+        nodeClipboard = { kind: n.kind, title: n.title, body: n.body ?? '', color: n.color ?? null, primitiveId: n.primitiveId ?? null, image: n.image ?? null, x: n.x, y: n.y };
         e.preventDefault();
       } else if (k === 'v' || k === 'p') {
         if (!nodeClipboard) return;
@@ -48,7 +53,7 @@ export default function FlowCanvas({
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [selId, nodes, onPasteNode]);
+  }, [selId, nodes, onPasteNode, onDeleteNode]);
 
   const list = Object.values(nodes);
   const extentX = Math.max(1400, ...list.map((n) => n.x + NODE_W + 320));
@@ -128,7 +133,14 @@ export default function FlowCanvas({
               <path d={`M ${a.x} ${a.y} C ${mx} ${a.y}, ${mx} ${b.y}, ${b.x} ${b.y}`} stroke={color} strokeWidth="2" fill="none" opacity=".8" />
               <foreignObject x={mx - 75} y={(a.y + b.y) / 2 - 26} width="150" height="28">
                 <div className="elab" style={{ borderColor: color, color }}>
-                  <span>{e.label || '•'}</span>
+                  <span className={onEditEdge ? 'editable' : ''}
+                    title={onEditEdge ? 'Click to edit label' : undefined}
+                    onClick={onEditEdge ? () => {
+                      const v = window.prompt('Connection label (e.g. "IF key obtained"):', e.label || '');
+                      if (v !== null) onEditEdge(e, v.trim());
+                    } : undefined}>
+                    {e.label || '•'}
+                  </span>
                   {onRemoveEdge && <button className="x" title="Remove connection" onClick={() => onRemoveEdge(e)}>×</button>}
                 </div>
               </foreignObject>
@@ -163,6 +175,7 @@ export default function FlowCanvas({
               <div><small style={{ color }}>{KIND_LABEL[n.kind] ?? n.kind}</small><b>{n.title}</b></div>
             </div>
             <div className="nb">
+              {n.image?.dataUrl && <img className="nimg" src={n.image.dataUrl} alt="" draggable={false} />}
               {n.body}
               {renderExtra?.(n)}
             </div>

@@ -1,16 +1,18 @@
 import React, { useState } from 'react';
-import { useGame, useDispatch } from '../state/store.jsx';
+import { useGame, useDispatch, useLibrary } from '../state/store.jsx';
 import { itemList } from '../state/reducer.js';
 import { Thumb, Pill, ENTITY_COLORS, AVAILABILITY } from '../components/bits.jsx';
 import CsvButtons from '../components/CsvButtons.jsx';
 import LibraryBrowser from '../components/LibraryBrowser.jsx';
+import TypeChips from '../components/TypeChips.jsx';
 import { CSV_SCHEMAS } from '../data/csvSchemas.js';
-
-const TYPE_TAGS = { artifact: 'Artifact', gadget: 'Gadget', consumable: 'Consumable' };
 
 export default function ItemDatabase({ selection, onSelect }) {
   const s = useGame();
+  const lib = useLibrary();
   const dispatch = useDispatch();
+  const typeLabel = (ty) => lib.itemTypes[ty]?.label ?? ty;
+  const typeColor = (ty) => lib.itemTypes[ty]?.color ?? '#8B92A6';
   const [view, setView] = useState('gallery');
   const [filter, setFilter] = useState('all');
   const [q, setQ] = useState('');
@@ -55,11 +57,7 @@ export default function ItemDatabase({ selection, onSelect }) {
       </div>
       <div className="toolrow">
         <input className="search" placeholder="Search items, props, tags…" value={q} onChange={(e) => setQ(e.target.value)} />
-        {['all', 'artifact', 'gadget', 'consumable'].map((f) => (
-          <button key={f} className={`chip${filter === f ? ' on' : ''}`} onClick={() => setFilter(f)}>
-            {f === 'all' ? `All · ${itemList(s).length}` : `${TYPE_TAGS[f]}s`}
-          </button>
-        ))}
+        <TypeChips value={filter} onChange={setFilter} totalLabel={`All · ${itemList(s).length}`} />
         <div className="viewtog">
           <button className={view === 'gallery' ? 'on' : ''} onClick={() => setView('gallery')}>Gallery</button>
           <button className={view === 'sheet' ? 'on' : ''} onClick={() => setView('sheet')}>Sheet</button>
@@ -82,7 +80,7 @@ export default function ItemDatabase({ selection, onSelect }) {
               <div className="thumb"><Thumb image={i.image} type={i.type} /></div>
               <figcaption>
                 <b>{i.name}</b>
-                <span className="tag" style={{ color: ENTITY_COLORS[i.type] }}>{TYPE_TAGS[i.type]}</span>
+                <span className="tag" style={{ color: typeColor(i.type) }}>{typeLabel(i.type)}</span>
                 <span className="deploy">{statusLine(i)}</span>
               </figcaption>
               <span className={`st st-${i.availability}`} title={i.availability} />
@@ -101,7 +99,7 @@ export default function ItemDatabase({ selection, onSelect }) {
                 return (
                   <tr key={i.id} className={selId === i.id ? 'sel' : ''} onClick={() => pick(i.id)}>
                     <td>{i.name}</td>
-                    <td>{TYPE_TAGS[i.type]}</td>
+                    <td>{typeLabel(i.type)}</td>
                     <td className="mono">{i.buildStatus}</td>
                     <td><Pill availability={i.availability} /></td>
                     <td>{holder}</td>
