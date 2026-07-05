@@ -147,6 +147,25 @@ export function narrativeToStructNode(narrative, structNodes, x, y) {
   };
 }
 
+// Save the active game's macro story track (its story-kind nodes + the edges
+// between them) to the Library as a reusable Story Structure. Positions come
+// from the Weaver's story-track layout so the saved template mirrors it.
+export function storyTrackToStructure(proj, id, name) {
+  const storyNodes = Object.values(proj.nodes).filter((n) => n.kind === 'story' || n.elementId);
+  const idMap = {};
+  const nodes = {};
+  storyNodes.forEach((n, i) => {
+    const sid = `S${i + 1}`;
+    idMap[n.id] = sid;
+    const pos = proj.storyTrack?.[n.id] || { x: 60, y: 40 + i * 180 };
+    nodes[sid] = { id: sid, primitiveId: n.primitiveId ?? null, kind: 'story', title: n.title, x: pos.x, y: pos.y, body: n.body || '', color: n.color ?? null };
+  });
+  const edges = proj.edges
+    .filter((e) => idMap[e.from] && idMap[e.to])
+    .map((e) => ({ from: idMap[e.from], to: idMap[e.to], label: e.label || '', color: e.color ?? null }));
+  return { id, name, description: `Saved from ${proj.meta.name}`, estMinutes: 30, nodes, edges };
+}
+
 // Instantiate a mechanic node INSIDE a mechanic structure (library editor).
 export function mechPrimitiveToStructNode(primitive, structNodes, x, y) {
   const id = genId(structNodes, 'S');

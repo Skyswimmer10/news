@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { importItem, importLocation, importStory, importNarrative, importMechPrimitive, importMechanic, narrativeToStructNode } from './bridge.js';
+import { importItem, importLocation, importStory, importNarrative, importMechPrimitive, importMechanic, narrativeToStructNode, storyTrackToStructure } from './bridge.js';
 import { reducer } from './reducer.js';
 import { makeLibrarySeed, makeProjectSeed, makeEmptyProject, LIB_BLANK, LIB_PREFIX } from '../data/seed.js';
 import { genId } from '../data/csvSchemas.js';
@@ -74,6 +74,18 @@ describe('library → project import bridge', () => {
     const copyId = Object.keys(proj.nodes)[0];
     reducer(proj, { type: 'UPDATE_ENTITY', coll: 'nodes', id: copyId, patch: { title: 'Changed' } });
     expect(lib.stories['LIB-STORY-BETRAY'].nodes.S1.title).toBe('Start Briefing');
+  });
+
+  it('storyTrackToStructure saves the macro story arc as a Story Structure', () => {
+    const proj = makeProjectSeed();
+    const struct = storyTrackToStructure(proj, 'LIB-STORY-N001', 'Chimera arc');
+    // only story-kind nodes, remapped to S-ids
+    expect(Object.keys(struct.nodes).length).toBe(3); // N-BRIEF, N-TWIST, N-END
+    expect(Object.values(struct.nodes).every((n) => n.kind === 'story')).toBe(true);
+    // the N-TWIST → N-END story edge survives, remapped
+    const titles = Object.values(struct.nodes).map((n) => n.title);
+    expect(titles).toEqual(expect.arrayContaining(['Briefing', 'Extraction']));
+    expect(struct.name).toBe('Chimera arc');
   });
 
   it('imports a narrative node as a story node with its text', () => {

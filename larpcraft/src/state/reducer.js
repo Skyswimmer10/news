@@ -143,6 +143,12 @@ export function reducer(state, action) {
       };
     }
 
+    // Weaver: position of a story beat on the left story-track canvas
+    // (kept separate from its Narrative & Quests canvas position).
+    case 'SET_STORY_POS': {
+      return { ...state, storyTrack: { ...(state.storyTrack || {}), [action.nodeId]: { x: action.x, y: action.y } } };
+    }
+
     // Weaver: conceptual alignment links between a story beat and a task.
     case 'ADD_ALIGN': {
       const aligns = state.alignments || [];

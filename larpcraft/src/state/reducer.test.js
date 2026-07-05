@@ -154,6 +154,17 @@ describe('scenario graph editing', () => {
     expect(s.alignments).toEqual(expect.arrayContaining([{ story: 'N-TWIST', task: 'N-DECRYPT' }]));
   });
 
+  it('SET_STORY_POS records a story beat position on the Weaver track', () => {
+    const s = reducer(seed(), { type: 'SET_STORY_POS', nodeId: 'N-BRIEF', x: 120, y: 240 });
+    expect(s.storyTrack['N-BRIEF']).toEqual({ x: 120, y: 240 });
+  });
+
+  it('rescheduling a task persists startMin via UPDATE_ENTITY', () => {
+    const s = reducer(seed(), { type: 'UPDATE_ENTITY', coll: 'nodes', id: 'N-KEY', patch: { startMin: 720, durationMin: 30 } });
+    expect(s.nodes['N-KEY'].startMin).toBe(720);
+    expect(s.meta.timeline).toEqual({ startMin: 540, endMin: 1020 });
+  });
+
   it('SET_META stores the per-game hero backdrop; SET_IMAGE respects field', () => {
     let s = reducer(seed(), { type: 'SET_META', patch: { hero: { image: { kind: 'photo', name: 'bg.jpg', dataUrl: 'data:x' }, opacity: 0.4 } } });
     expect(s.meta.hero.opacity).toBe(0.4);

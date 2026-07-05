@@ -300,8 +300,8 @@ export function makeEmptyProject(name = 'Untitled game') {
     // hero: per-game backdrop image shown behind the workspace, with
     // adjustable opacity and placement ('app' whole workspace | 'content'
     // behind the main content area). File menu → Set game backdrop…
-    meta: { name, prefix: 'GAME', createdAt: Date.now(), hero: { image: null, opacity: 0.25, placement: 'app' } },
-    items: {}, locations: {}, sensors: {}, mechanics: {}, nodes: {}, edges: [], alignments: [], teams: {}, players: {},
+    meta: { name, prefix: 'GAME', createdAt: Date.now(), hero: { image: null, opacity: 0.25, placement: 'app' }, timeline: { startMin: 540, endMin: 1020 } },
+    items: {}, locations: {}, sensors: {}, mechanics: {}, nodes: {}, edges: [], alignments: [], storyTrack: {}, teams: {}, players: {},
   };
 }
 
@@ -309,7 +309,7 @@ export function makeEmptyProject(name = 'Untitled game') {
 export function makeProjectSeed() {
   return {
     rev: SEED_REV,
-    meta: { name: 'Operation Chimera', prefix: 'CHM', createdAt: Date.now(), hero: { image: null, opacity: 0.25, placement: 'app' } },
+    meta: { name: 'Operation Chimera', prefix: 'CHM', createdAt: Date.now(), hero: { image: null, opacity: 0.25, placement: 'app' }, timeline: { startMin: 540, endMin: 1020 } },
 
     // Sensor hardware INSTANCES: template + game state (status, placement,
     // assignment, battery).
@@ -375,11 +375,11 @@ export function makeProjectSeed() {
 
     nodes: {
       'N-BRIEF': { id: 'N-BRIEF', kind: 'story', title: 'Briefing', x: 40, y: 90, body: 'Teams receive the crash-site dossier and a sealed radio frequency.', color: null, locationId: null, itemId: null, mechanicIds: [], sensorIds: [] },
-      'N-S7': { id: 'N-S7', kind: 'location', title: 'Sector 7 Warehouse', x: 380, y: 40, body: '2 patrols · marked safety zone', color: null, locationId: 'LOC-S7', itemId: null, mechanicIds: [], sensorIds: ['RFID-07', 'MOT-04'] },
-      'N-KEY': { id: 'N-KEY', kind: 'objective', title: 'Retrieve Cipher-Key', x: 380, y: 300, body: 'Success unlocks Sector 8.', color: null, locationId: 'LOC-S7', itemId: 'CHM-A-004', mechanicIds: ['LIB-MECH-LOCK'], sensorIds: ['RFID-07'] },
-      'N-PATROL': { id: 'N-PATROL', kind: 'enemy', title: 'Security Patrols', x: 720, y: 40, body: 'NPC crew: Mank +1 · Tier 2 · 7 min loop', color: null, locationId: 'LOC-S7', itemId: null, mechanicIds: [], sensorIds: [] },
-      'N-DECRYPT': { id: 'N-DECRYPT', kind: 'mechanic', title: 'Decrypt the Dataslate', x: 720, y: 300, body: 'Fail ×3 → alarm reroutes patrols.', color: null, locationId: 'LOC-COMMS', itemId: 'CHM-A-007', mechanicIds: ['LIB-MECH-DECRYPT'], sensorIds: ['BTN-11', 'NFC-03'] },
-      'N-GATE': { id: 'N-GATE', kind: 'sensor', title: 'Sector 8 gate opens', x: 1060, y: 170, body: 'Fires quest.key_obtained to Live Ops.', color: null, locationId: 'LOC-S8', itemId: 'CHM-A-002', mechanicIds: ['LIB-MECH-ACCESS'], sensorIds: ['PRX-02'] },
+      'N-S7': { id: 'N-S7', kind: 'location', title: 'Sector 7 Warehouse', x: 380, y: 40, body: '2 patrols · marked safety zone', color: null, locationId: 'LOC-S7', itemId: null, mechanicIds: [], sensorIds: ['RFID-07', 'MOT-04'], startMin: 540, durationMin: 60 },
+      'N-KEY': { id: 'N-KEY', kind: 'objective', title: 'Retrieve Cipher-Key', x: 380, y: 300, body: 'Success unlocks Sector 8.', color: null, locationId: 'LOC-S7', itemId: 'CHM-A-004', mechanicIds: ['LIB-MECH-LOCK'], sensorIds: ['RFID-07'], startMin: 600, durationMin: 45 },
+      'N-PATROL': { id: 'N-PATROL', kind: 'enemy', title: 'Security Patrols', x: 720, y: 40, body: 'NPC crew: Mank +1 · Tier 2 · 7 min loop', color: null, locationId: 'LOC-S7', itemId: null, mechanicIds: [], sensorIds: [], startMin: 660, durationMin: 90 },
+      'N-DECRYPT': { id: 'N-DECRYPT', kind: 'mechanic', title: 'Decrypt the Dataslate', x: 720, y: 300, body: 'Fail ×3 → alarm reroutes patrols.', color: null, locationId: 'LOC-COMMS', itemId: 'CHM-A-007', mechanicIds: ['LIB-MECH-DECRYPT'], sensorIds: ['BTN-11', 'NFC-03'], startMin: 780, durationMin: 60 },
+      'N-GATE': { id: 'N-GATE', kind: 'sensor', title: 'Sector 8 gate opens', x: 1060, y: 170, body: 'Fires quest.key_obtained to Live Ops.', color: null, locationId: 'LOC-S8', itemId: 'CHM-A-002', mechanicIds: ['LIB-MECH-ACCESS'], sensorIds: ['PRX-02'], startMin: 900, durationMin: 30 },
       'N-TWIST': { id: 'N-TWIST', kind: 'story', title: 'False-flag intercept', x: 720, y: 560, body: 'A radio intercept names one player team as "the decoys".', color: null, locationId: null, itemId: null, mechanicIds: [], sensorIds: [] },
       'N-END': { id: 'N-END', kind: 'story', title: 'Extraction', x: 1060, y: 460, body: 'Teams call in the beacon and exfiltrate before the timer.', color: null, locationId: null, itemId: null, mechanicIds: [], sensorIds: [] },
     },
@@ -399,6 +399,8 @@ export function makeProjectSeed() {
       { story: 'N-TWIST', task: 'N-DECRYPT' },
       { story: 'N-END', task: 'N-GATE' },
     ],
+    // Weaver left-panel layout for the macro story track (nodeId → {x,y}).
+    storyTrack: { 'N-BRIEF': { x: 60, y: 40 }, 'N-TWIST': { x: 60, y: 220 }, 'N-END': { x: 60, y: 400 } },
 
     teams: {
       'T-RAVEN': { id: 'T-RAVEN', name: 'Team Raven', color: '#5CA8F5', focus: 'Infiltration specialists · returning crew' },
