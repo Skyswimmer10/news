@@ -54,7 +54,7 @@ export const LIB_PREFIX = {
 export const LIB_BLANK = {
   items: (id) => ({ id, name: 'New item template', type: 'gadget', description: '', propNotes: '', loreNotes: '', mechanicIds: [], sensorReqs: [], image: null }),
   locations: (id) => ({ id, name: 'New location template', notes: '', safety: '', image: null }),
-  mechanics: (id) => ({ id, name: 'New mechanic', summary: '' }),
+  mechanics: (id) => ({ id, name: 'New mechanic', summary: '', params: [] }),
   sensors: (id) => ({ id, kind: 'New sensor type', label: '' }),
   primitives: (id) => ({ id, name: 'New primitive', baseKind: 'story', color: '#5CA8F5', icon: 'flag', inputs: ['in'], outputs: ['out'], defaultBody: '', estMinutes: 5, crew: 0 }),
   stories: (id) => ({ id, name: 'New structure', description: '', estMinutes: 15, nodes: {}, edges: [] }),
@@ -79,13 +79,17 @@ export function makeLibrarySeed() {
   return {
     rev: LIB_REV,
 
+    // Mechanic templates carry default PARAMETERS (switch/sensor counts,
+    // timings, thresholds). Importing a mechanic into a game copies these; the
+    // game instance can then be micro-adjusted (e.g. 1 switch → 4) without
+    // ever changing this master blueprint.
     mechanics: {
-      'LIB-MECH-LOCK': { id: 'LIB-MECH-LOCK', name: 'Lockpicking minigame', summary: 'Physical pick set on a practice lock; 3 fails raise the alarm.' },
-      'LIB-MECH-DECRYPT': { id: 'LIB-MECH-DECRYPT', name: 'Decryption puzzle', summary: 'Button-box cipher wheel; hint unlocks after 3 failed tries.' },
-      'LIB-MECH-COMMS': { id: 'LIB-MECH-COMMS', name: 'Comms link', summary: 'Radio protocol between team units and GM console.' },
-      'LIB-MECH-ACCESS': { id: 'LIB-MECH-ACCESS', name: 'Access control', summary: 'Key card gates between zones.' },
-      'LIB-MECH-REVIVE': { id: 'LIB-MECH-REVIVE', name: 'Downed-player revive', summary: 'Medkit card ritual, 90 seconds at a safe zone.' },
-      'LIB-MECH-UV': { id: 'LIB-MECH-UV', name: 'Hidden-ink clues', summary: 'UV-reactive markings on props and walls.' },
+      'LIB-MECH-LOCK': { id: 'LIB-MECH-LOCK', name: 'Lockpicking minigame', summary: 'Physical pick set on a practice lock; fails raise the alarm.', params: [{ key: 'fails', label: 'Fail limit', value: '3' }, { key: 'locks', label: 'Locks to pick', value: '1' }] },
+      'LIB-MECH-DECRYPT': { id: 'LIB-MECH-DECRYPT', name: 'Decryption puzzle', summary: 'Button-box cipher wheel; hint unlocks after failed tries.', params: [{ key: 'hintAfter', label: 'Hint after tries', value: '3' }, { key: 'digits', label: 'Cipher digits', value: '4' }] },
+      'LIB-MECH-COMMS': { id: 'LIB-MECH-COMMS', name: 'Comms link', summary: 'Radio protocol between team units and GM console.', params: [{ key: 'channels', label: 'Channels', value: '1' }] },
+      'LIB-MECH-ACCESS': { id: 'LIB-MECH-ACCESS', name: 'Access control', summary: 'One switch equals one action; all switches open the gate.', params: [{ key: 'switches', label: 'Switches required', value: '1' }] },
+      'LIB-MECH-REVIVE': { id: 'LIB-MECH-REVIVE', name: 'Downed-player revive', summary: 'Medkit card ritual at a safe zone.', params: [{ key: 'seconds', label: 'Revive seconds', value: '90' }] },
+      'LIB-MECH-UV': { id: 'LIB-MECH-UV', name: 'Hidden-ink clues', summary: 'UV-reactive markings on props and walls.', params: [{ key: 'clues', label: 'Clue count', value: '3' }] },
     },
 
     // Hardware templates: base construction only. Battery, placement and
@@ -225,7 +229,7 @@ export function makeEmptyProject(name = 'Untitled game') {
     // adjustable opacity and placement ('app' whole workspace | 'content'
     // behind the main content area). File menu → Set game backdrop…
     meta: { name, prefix: 'GAME', createdAt: Date.now(), hero: { image: null, opacity: 0.25, placement: 'app' } },
-    items: {}, locations: {}, sensors: {}, nodes: {}, edges: [], teams: {}, players: {},
+    items: {}, locations: {}, sensors: {}, mechanics: {}, nodes: {}, edges: [], teams: {}, players: {},
   };
 }
 
@@ -287,6 +291,14 @@ export function makeProjectSeed() {
       'CHM-G-018': { id: 'CHM-G-018', templateId: 'LIB-ITM-006', name: 'Signal Beacon', type: 'gadget', buildStatus: 'build', availability: 'ready', description: 'Extraction call-in beacon for the finale.', propNotes: '3D-printed shell, ESP32 + LED ring. Needs field test.', loreNotes: '', locationId: 'LOC-S8', mechanicIds: [], sensorReqs: [{ sensorId: 'RF-01', note: 'GM console receiver' }], image: null, assignedTo: null },
       'CHM-G-001': { id: 'CHM-G-001', templateId: 'LIB-ITM-007', name: 'UV Torch', type: 'gadget', buildStatus: 'packed', availability: 'ready', description: 'Reveals hidden ink markings.', propNotes: 'Consumer UV flashlight ×4, batteries fresh.', loreNotes: '', locationId: null, mechanicIds: ['LIB-MECH-UV'], sensorReqs: [], image: null, assignedTo: null },
       'CHM-C-009': { id: 'CHM-C-009', templateId: 'LIB-ITM-008', name: 'Medkit Prop', type: 'consumable', buildStatus: 'packed', availability: 'ready', description: 'Revive kit: bandage cards + ritual instructions.', propNotes: 'Surplus pouch, 12 bandage cards.', loreNotes: '', locationId: 'LOC-MED', mechanicIds: ['LIB-MECH-REVIVE'], sensorReqs: [], image: null, assignedTo: null },
+    },
+
+    // Game mechanic INSTANCES: imported from the library, then micro-adjusted
+    // for this specific game. Note the Server Room Door needs 4 switches here,
+    // while its library blueprint (LIB-MECH-ACCESS) still defaults to 1.
+    mechanics: {
+      'CHM-MECH-01': { id: 'CHM-MECH-01', templateId: 'LIB-MECH-ACCESS', name: 'Server room door', summary: 'Four wall switches must be held to open the server room.', params: [{ key: 'switches', label: 'Switches required', value: '4' }] },
+      'CHM-MECH-02': { id: 'CHM-MECH-02', templateId: 'LIB-MECH-DECRYPT', name: 'Dataslate decryption', summary: 'Cipher wheel on the comms bench; harder this game.', params: [{ key: 'hintAfter', label: 'Hint after tries', value: '5' }, { key: 'digits', label: 'Cipher digits', value: '6' }] },
     },
 
     nodes: {

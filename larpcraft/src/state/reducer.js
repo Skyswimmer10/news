@@ -115,6 +115,7 @@ export function reducer(state, action) {
         items: { ...state.items, ...(action.items || {}) },
         locations: { ...state.locations, ...(action.locations || {}) },
         sensors: { ...state.sensors, ...(action.sensors || {}) },
+        mechanics: { ...(state.mechanics || {}), ...(action.mechanics || {}) },
         nodes: { ...state.nodes, ...(action.nodes || {}) },
         edges: action.edges?.length ? [...state.edges, ...action.edges] : state.edges,
       };

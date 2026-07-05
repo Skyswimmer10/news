@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { importItem, importLocation, importStory, importPrimitive, importElement, primitiveToStructNode } from './bridge.js';
+import { importItem, importLocation, importStory, importPrimitive, importElement, importMechanic, primitiveToStructNode } from './bridge.js';
 import { reducer } from './reducer.js';
 import { makeLibrarySeed, makeProjectSeed, makeEmptyProject, LIB_BLANK, LIB_PREFIX } from '../data/seed.js';
 import { genId } from '../data/csvSchemas.js';
@@ -101,6 +101,28 @@ describe('library → project import bridge', () => {
     }
     expect(Object.keys(lib.primitives).length).toBeGreaterThanOrEqual(4);
     expect(lib.stories['LIB-STORY-COURIER'].estMinutes).toBe(35);
+  });
+
+  it('imports a mechanic with its params, then micro-adjusts without touching the library', () => {
+    let proj = makeEmptyProject('Test Game');
+    const result = importMechanic(lib, proj, 'LIB-MECH-ACCESS'); // switches default 1
+    const mech = result.mechanics[result.createdId];
+    expect(mech.templateId).toBe('LIB-MECH-ACCESS');
+    expect(mech.params.find((p) => p.key === 'switches').value).toBe('1');
+    proj = reducer(proj, { type: 'IMPORT_FROM_LIBRARY', ...result });
+
+    // bump switches to 4 for this game only
+    const bumped = { ...mech, params: [{ key: 'switches', label: 'Switches required', value: '4' }] };
+    proj = reducer(proj, { type: 'UPDATE_ENTITY', coll: 'mechanics', id: mech.id, patch: bumped });
+    expect(proj.mechanics[mech.id].params[0].value).toBe('4');
+    // library blueprint is untouched
+    expect(lib.mechanics['LIB-MECH-ACCESS'].params.find((p) => p.key === 'switches').value).toBe('1');
+  });
+
+  it('the demo game ships a micro-adjusted mechanic (4 switches vs library 1)', () => {
+    const proj = makeProjectSeed();
+    expect(proj.mechanics['CHM-MECH-01'].params.find((p) => p.key === 'switches').value).toBe('4');
+    expect(lib.mechanics['LIB-MECH-ACCESS'].params.find((p) => p.key === 'switches').value).toBe('1');
   });
 
   it('the library seeds game master rules with principle + descriptive tabs', () => {

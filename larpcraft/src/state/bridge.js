@@ -65,6 +65,20 @@ export function importLocation(lib, proj, templateId) {
   return { locations: { [id]: location }, createdId: id };
 }
 
+// Import a mechanic template into the game as a configurable instance. Its
+// parameters are copied so the game can micro-adjust them (add switches,
+// change timings) without touching the master blueprint in the library.
+export function importMechanic(lib, proj, mechId) {
+  const t = lib.mechanics[mechId];
+  if (!t) return null;
+  const id = genId(proj.mechanics ?? {}, `${proj.meta.prefix}-MECH-`);
+  const mech = {
+    id, templateId: t.id, name: t.name, summary: t.summary,
+    params: (t.params || []).map((p) => ({ ...p })),
+  };
+  return { mechanics: { [id]: mech }, createdId: id };
+}
+
 // A story structure is a saved node GRAPH. Importing instantiates a fully
 // detached copy: every node gets a fresh project id (the whole layout is
 // preserved, shifted below existing content), edges are remapped to the new

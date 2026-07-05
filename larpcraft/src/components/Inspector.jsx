@@ -390,6 +390,7 @@ function LibLocationPanel({ template }) {
 function LibMechanicPanel({ template }) {
   const libDispatch = useLibraryDispatch();
   const upd = (patch) => libDispatch({ type: 'UPDATE_ENTITY', coll: 'mechanics', id: template.id, patch });
+  const params = template.params ?? [];
   return (
     <>
       <TemplateBadge />
@@ -399,7 +400,22 @@ function LibMechanicPanel({ template }) {
       </div>
       <TextField label="Name" value={template.name} onCommit={(v) => upd({ name: v })} />
       <TextField label="How it plays" textarea value={template.summary} onCommit={(v) => upd({ summary: v })} />
-      <div className="isect"><div className="hint">Mechanics are referenced by games directly — no instance copy needed.</div></div>
+      <div className="isect">
+        <SectionLabel>Default parameters</SectionLabel>
+        <div className="paramlist">
+          {params.map((p, i) => (
+            <div className="paramrow" key={i}>
+              <input className="field-input plabel" value={p.label}
+                onChange={(e) => upd({ params: params.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)) })} placeholder="Parameter" />
+              <input className="field-input pvalinput" value={p.value}
+                onChange={(e) => upd({ params: params.map((x, j) => (j === i ? { ...x, value: e.target.value } : x)) })} />
+              <button className="x" onClick={() => upd({ params: params.filter((_, j) => j !== i) })} aria-label="Remove">×</button>
+            </div>
+          ))}
+          <button className="chip addcat" onClick={() => upd({ params: [...params, { key: `p${params.length + 1}`, label: 'New parameter', value: '1' }] })}>+ Add parameter</button>
+        </div>
+        <div className="hint">Games import this mechanic and micro-adjust these values locally, without changing this blueprint.</div>
+      </div>
     </>
   );
 }
