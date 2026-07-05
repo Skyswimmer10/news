@@ -9,9 +9,11 @@ import Locations from './views/Locations.jsx';
 import Library from './views/Library.jsx';
 import GameMasterRules from './views/GameMasterRules.jsx';
 import GameMechanics from './views/GameMechanics.jsx';
+import Weaver from './views/Weaver.jsx';
 
 const BUILD_VIEWS = [
   { id: 'flow', label: 'Narrative & Quests', color: 'var(--c-narrative)', comp: ScenarioFlow, count: (p) => Object.keys(p.nodes).length },
+  { id: 'weaver', label: 'Weaver', color: 'var(--c-sensor)', comp: Weaver, count: (p) => (p.alignments ?? []).length },
   { id: 'locations', label: 'Locations', color: 'var(--c-location)', comp: Locations, count: (p) => Object.keys(p.locations).length },
   { id: 'items', label: 'Items & Gadgets', color: 'var(--c-item)', comp: ItemDatabase, count: (p) => Object.keys(p.items).length },
   { id: 'mechanics', label: 'Mechanics', color: 'var(--c-mechanic)', comp: GameMechanics, count: (p) => Object.keys(p.mechanics ?? {}).length },

@@ -229,7 +229,7 @@ export function makeEmptyProject(name = 'Untitled game') {
     // adjustable opacity and placement ('app' whole workspace | 'content'
     // behind the main content area). File menu → Set game backdrop…
     meta: { name, prefix: 'GAME', createdAt: Date.now(), hero: { image: null, opacity: 0.25, placement: 'app' } },
-    items: {}, locations: {}, sensors: {}, mechanics: {}, nodes: {}, edges: [], teams: {}, players: {},
+    items: {}, locations: {}, sensors: {}, mechanics: {}, nodes: {}, edges: [], alignments: [], teams: {}, players: {},
   };
 }
 
@@ -308,6 +308,8 @@ export function makeProjectSeed() {
       'N-PATROL': { id: 'N-PATROL', kind: 'enemy', title: 'Security Patrols', x: 720, y: 40, body: 'NPC crew: Mank +1 · Tier 2 · 7 min loop', color: null, locationId: 'LOC-S7', itemId: null, mechanicIds: [], sensorIds: [] },
       'N-DECRYPT': { id: 'N-DECRYPT', kind: 'mechanic', title: 'Decrypt the Dataslate', x: 720, y: 300, body: 'Fail ×3 → alarm reroutes patrols.', color: null, locationId: 'LOC-COMMS', itemId: 'CHM-A-007', mechanicIds: ['LIB-MECH-DECRYPT'], sensorIds: ['BTN-11', 'NFC-03'] },
       'N-GATE': { id: 'N-GATE', kind: 'sensor', title: 'Sector 8 gate opens', x: 1060, y: 170, body: 'Fires quest.key_obtained to Live Ops.', color: null, locationId: 'LOC-S8', itemId: 'CHM-A-002', mechanicIds: ['LIB-MECH-ACCESS'], sensorIds: ['PRX-02'] },
+      'N-TWIST': { id: 'N-TWIST', kind: 'story', title: 'False-flag intercept', x: 720, y: 560, body: 'A radio intercept names one player team as "the decoys".', color: null, locationId: null, itemId: null, mechanicIds: [], sensorIds: [] },
+      'N-END': { id: 'N-END', kind: 'story', title: 'Extraction', x: 1060, y: 460, body: 'Teams call in the beacon and exfiltrate before the timer.', color: null, locationId: null, itemId: null, mechanicIds: [], sensorIds: [] },
     },
     edges: [
       { from: 'N-BRIEF', to: 'N-S7', label: 'game start', kindColor: 'story' },
@@ -316,6 +318,14 @@ export function makeProjectSeed() {
       { from: 'N-KEY', to: 'N-DECRYPT', label: 'IF key obtained', kindColor: 'objective' },
       { from: 'N-KEY', to: 'N-GATE', label: 'THEN unlock Sector 8', kindColor: 'sensor' },
       { from: 'N-DECRYPT', to: 'N-GATE', label: 'REQUIRES decode', kindColor: 'mechanic' },
+      { from: 'N-DECRYPT', to: 'N-TWIST', label: 'ON decode', kindColor: 'mechanic' },
+      { from: 'N-GATE', to: 'N-END', label: 'THEN finale', kindColor: 'sensor' },
+    ],
+    // Weaver alignments: story beats ↔ physical tasks they are tied to.
+    alignments: [
+      { story: 'N-BRIEF', task: 'N-KEY' },
+      { story: 'N-TWIST', task: 'N-DECRYPT' },
+      { story: 'N-END', task: 'N-GATE' },
     ],
 
     teams: {

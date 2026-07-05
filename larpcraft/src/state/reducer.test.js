@@ -134,6 +134,25 @@ describe('scenario graph editing', () => {
     expect(s.edges.find((e) => e.from === 'N-KEY' && e.to === 'N-GATE').label).toBe('WHEN both keys held');
   });
 
+  it('Weaver alignments add, dedupe, remove, and clean up on node delete', () => {
+    let s = reducer(seed(), { type: 'ADD_ALIGN', story: 'N-BRIEF', task: 'N-S7' });
+    const n = s.alignments.length;
+    s = reducer(s, { type: 'ADD_ALIGN', story: 'N-BRIEF', task: 'N-S7' }); // dup ignored
+    expect(s.alignments.length).toBe(n);
+    s = reducer(s, { type: 'REMOVE_ALIGN', story: 'N-BRIEF', task: 'N-S7' });
+    expect(s.alignments.some((a) => a.story === 'N-BRIEF' && a.task === 'N-S7')).toBe(false);
+    // deleting a task node drops alignments referencing it (seed aligns N-END↔N-GATE)
+    const before = s.alignments.length;
+    s = reducer(s, { type: 'DELETE_NODE', nodeId: 'N-GATE' });
+    expect(s.alignments.length).toBe(before - 1);
+    expect(s.alignments.some((a) => a.task === 'N-GATE')).toBe(false);
+  });
+
+  it('the demo game ships seeded story↔task alignments', () => {
+    const s = seed();
+    expect(s.alignments).toEqual(expect.arrayContaining([{ story: 'N-TWIST', task: 'N-DECRYPT' }]));
+  });
+
   it('SET_META stores the per-game hero backdrop; SET_IMAGE respects field', () => {
     let s = reducer(seed(), { type: 'SET_META', patch: { hero: { image: { kind: 'photo', name: 'bg.jpg', dataUrl: 'data:x' }, opacity: 0.4 } } });
     expect(s.meta.hero.opacity).toBe(0.4);

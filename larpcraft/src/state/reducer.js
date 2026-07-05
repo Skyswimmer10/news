@@ -130,13 +130,27 @@ export function reducer(state, action) {
       return { ...state, meta: { ...state.meta, ...action.patch } };
     }
 
-    // Delete a node and every connection touching it.
+    // Delete a node and every connection (and Weaver alignment) touching it.
     case 'DELETE_NODE': {
       const { nodeId } = action;
       if (!state.nodes[nodeId]) return state;
       const nodes = { ...state.nodes };
       delete nodes[nodeId];
-      return { ...state, nodes, edges: state.edges.filter((e) => e.from !== nodeId && e.to !== nodeId) };
+      return {
+        ...state, nodes,
+        edges: state.edges.filter((e) => e.from !== nodeId && e.to !== nodeId),
+        alignments: (state.alignments || []).filter((a) => a.story !== nodeId && a.task !== nodeId),
+      };
+    }
+
+    // Weaver: conceptual alignment links between a story beat and a task.
+    case 'ADD_ALIGN': {
+      const aligns = state.alignments || [];
+      if (aligns.some((a) => a.story === action.story && a.task === action.task)) return state;
+      return { ...state, alignments: [...aligns, { story: action.story, task: action.task }] };
+    }
+    case 'REMOVE_ALIGN': {
+      return { ...state, alignments: (state.alignments || []).filter((a) => !(a.story === action.story && a.task === action.task)) };
     }
 
     // Edit a connection's label (or other fields).
