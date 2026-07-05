@@ -23,7 +23,7 @@ const TABS = [
 // only story content; the mechanic node tree lives under Game Mechanics.
 const GROUP_META = {
   physical: { label: 'Physical', tabs: ['items', 'locations', 'sensors'] },
-  mechanics: { label: 'Game Mechanics', tabs: ['mechanics', 'mechPrimitives', 'mechStructures'] },
+  mechanics: { label: 'Game Mechanics', tabs: ['mechPrimitives', 'mechStructures'] },
   story: { label: 'Story & Narrative', tabs: ['narrative', 'stories'] },
 };
 
@@ -42,7 +42,7 @@ function PaletteNode({ n, onSelect }) {
       onDragStart={(e) => { e.dataTransfer.setData('text/x-palette', n.id); e.dataTransfer.effectAllowed = 'copy'; }}
       onClick={onSelect} title={`${n.body || ''} (drag onto the canvas)`}>
       <PrimIcon icon={n.icon} color={n.color} />
-      <div><b>{n.name}</b><small>{n.category || n.baseKind}</small></div>
+      <div><b>{n.name}</b>{n.category && <small>{n.category}</small>}</div>
     </div>
   );
 }
@@ -240,11 +240,7 @@ export default function Library({ group = 'physical', selection, onSelect }) {
                 <b>{p.name}</b>
               </div>
               <small>{p.defaultBody}</small>
-              <div className="primmeta">
-                <span className="handle in">{p.inputs.length ? `in: ${p.inputs.join(', ')}` : 'entry point'}</span>
-                <span className="handle out">{p.outputs.length ? `out: ${p.outputs.join(', ')}` : 'terminal'}</span>
-              </div>
-              <div className="primmeta dim mono">{p.baseKind} · ~{p.estMinutes} min · {p.id}</div>
+              <div className="primmeta dim mono">~{p.estMinutes} min · {p.id}</div>
             </button>
           ))}
         </div>

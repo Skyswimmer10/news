@@ -113,8 +113,8 @@ input,select,textarea{font:inherit}
 .elemcard small{font-size:11.5px;line-height:1.5;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 .etag{font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase}
 .chip.cat{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
-.chip.cat .x{display:none;color:inherit;font-size:13px;line-height:1;padding:0 1px;opacity:.75}
-.chip.cat:hover .x{display:inline}
+.chip.cat .x{display:inline;color:inherit;font-size:13px;line-height:1;padding:0 1px;opacity:.6}
+.chip.cat:hover .x{opacity:.9}
 .chip.cat .x:hover{color:var(--bad);opacity:1}
 .chip.addcat{border-style:dashed;color:var(--faint)}
 .chip.addcat:hover{color:var(--ink);border-color:var(--brand)}
@@ -408,8 +408,10 @@ tbody tr.sel td{background:rgba(224,162,60,.09);box-shadow:inset 3px 0 0 var(--c
 .node .nh b{font-size:12.5px}
 .node .nb{padding:9px 12px 11px;color:var(--muted);font-size:11.5px;line-height:1.5;min-height:20px}
 .nref{display:flex;align-items:center;gap:8px;margin-top:8px;background:var(--raised);border:1px solid var(--line-soft);border-radius:6px;padding:5px 8px}
-.elab{font-size:10px;font-weight:700;padding:3px 8px;border-radius:99px;background:#181B25;border:1px solid;white-space:nowrap;display:inline-flex;align-items:center;gap:4px;max-width:148px;overflow:hidden;pointer-events:auto}
+.elab{font-size:10px;font-weight:700;padding:3px 8px;border-radius:99px;background:#181B25;border:1px solid;white-space:nowrap;display:inline-flex;align-items:center;gap:4px;max-width:158px;overflow:hidden;pointer-events:auto}
 .elab span{overflow:hidden;text-overflow:ellipsis}
+.elab.empty{border-style:dashed;opacity:.5;font-weight:600}
+.elab.empty:hover{opacity:1}
 .elab .x{display:none;color:inherit;font-size:12px;line-height:1;padding:0 2px}
 .elab:hover .x{display:inline}
 .elab .x:hover{color:var(--bad)}

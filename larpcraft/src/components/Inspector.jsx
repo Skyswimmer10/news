@@ -466,20 +466,11 @@ function LibMechPrimitivePanel({ template }) {
       <TemplateBadge />
       <div className="ihead">
         <div className="ihrow"><span className="sq big" style={{ background: template.color }} /><h3>{template.name}</h3></div>
-        <div className="sub mono">{template.id} · mechanic node · {template.baseKind}</div>
+        <div className="sub mono">{template.id} · mechanic node</div>
       </div>
       <ImportButton build={(l, p) => importMechPrimitive(l, p, template.id)} label="Add node to game canvas" />
       <TextField label="Name" value={template.name} onCommit={(v) => upd({ name: v })} />
       <TextField label="Default description" textarea value={template.defaultBody} onCommit={(v) => upd({ defaultBody: v })} />
-      <div className="isect">
-        <SectionLabel>Logic handles</SectionLabel>
-        <div className="chips">
-          {template.inputs.map((h) => <Chip key={h} color="#8B92A6">▸ {h}</Chip>)}
-          {template.inputs.length === 0 && <Chip color="#43BF87">entry point</Chip>}
-          {template.outputs.map((h) => <Chip key={h} color={template.color}>{h} ▸</Chip>)}
-          {template.outputs.length === 0 && <Chip color="#E86464">terminal</Chip>}
-        </div>
-      </div>
       <div className="frow" style={{ padding: '13px 16px 0' }}>
         <div><SectionLabel>Est. minutes</SectionLabel>
           <input className="field-input" defaultValue={template.estMinutes}

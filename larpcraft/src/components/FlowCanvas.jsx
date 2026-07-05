@@ -131,15 +131,15 @@ export default function FlowCanvas({
           return (
             <g key={idx}>
               <path d={`M ${a.x} ${a.y} C ${mx} ${a.y}, ${mx} ${b.y}, ${b.x} ${b.y}`} stroke={color} strokeWidth="2" fill="none" opacity=".8" />
-              <foreignObject x={mx - 75} y={(a.y + b.y) / 2 - 26} width="150" height="28">
-                <div className="elab" style={{ borderColor: color, color }}>
+              <foreignObject x={mx - 80} y={(a.y + b.y) / 2 - 26} width="160" height="28">
+                <div className={`elab${e.label ? '' : ' empty'}`} style={{ borderColor: color, color }}>
                   <span className={onEditEdge ? 'editable' : ''}
-                    title={onEditEdge ? 'Click to edit label' : undefined}
+                    title={onEditEdge ? 'Click to edit the connection label' : undefined}
                     onClick={onEditEdge ? () => {
                       const v = window.prompt('Connection label (e.g. "IF key obtained"):', e.label || '');
                       if (v !== null) onEditEdge(e, v.trim());
                     } : undefined}>
-                    {e.label || '•'}
+                    {e.label || (onEditEdge ? '+ label' : '•')}
                   </span>
                   {onRemoveEdge && <button className="x" title="Remove connection" onClick={() => onRemoveEdge(e)}>×</button>}
                 </div>

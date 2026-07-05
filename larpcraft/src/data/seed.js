@@ -45,7 +45,6 @@ export const DEFAULT_NARRATIVE_CATEGORIES = {
 export const GM_RULE_TABS = [
   { id: 'implementation', label: 'Implementation' },
   { id: 'rationale', label: 'Rationale' },
-  { id: 'aiRule', label: 'AI Generation Rule' },
 ];
 
 // Blank factories for the Library's "+ New …" buttons and id prefixes.
