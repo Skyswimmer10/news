@@ -185,6 +185,29 @@ input,select,textarea{font:inherit}
 .menuseg .segrow button.on{background:var(--brand);color:#fff}
 .menuseg .segrow button:not(.on):hover{background:var(--raised);color:var(--ink)}
 
+/* Game Master Rules */
+.gmlist{flex:1;overflow-y:auto;border-top:1px solid var(--line-soft);padding:16px 20px;display:flex;flex-direction:column;gap:12px;background:#161923;align-content:start}
+.gmcard{text-align:left;background:var(--panel);border:1px solid var(--line);border-left:3px solid #E8D25C;border-radius:11px;padding:14px 16px;cursor:pointer;display:flex;flex-direction:column;gap:8px}
+.gmcard:hover{border-color:var(--brand)}
+.gmcardhead{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+.gmcardhead b{font-size:14px;color:var(--ink)}
+.gmprinciple{font-size:12.5px;color:var(--muted);line-height:1.55;max-width:80ch}
+.gmtabschips{display:flex;gap:6px;flex-wrap:wrap}
+.gmtabchip{font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:2.5px 8px;border-radius:99px;border:1px solid var(--line);color:var(--faint)}
+.gmtabchip.filled{border-color:rgba(232,210,92,.5);color:#EDBB63}
+.ruledetail{flex:1;overflow-y:auto;border-top:1px solid var(--line-soft);padding:18px 24px;display:flex;flex-direction:column;gap:16px;background:#161923;max-width:1000px;width:100%}
+.rulefield .lab, .principlebox .lab{margin-bottom:7px}
+.hintinline{font-weight:400;letter-spacing:0;text-transform:none;color:var(--faint);margin-left:8px}
+.principlebox{background:rgba(232,210,92,.06);border:1px solid rgba(232,210,92,.35);border-radius:12px;padding:14px 16px}
+.principle-input{font-size:15px!important;line-height:1.55;font-weight:500;background:transparent!important;border-color:transparent!important;padding-left:0!important;padding-right:0!important}
+.principle-input:focus{border-color:var(--brand)!important;background:var(--raised)!important;padding-left:11px!important;padding-right:11px!important}
+.ruletabs{display:flex;gap:2px;border-bottom:1px solid var(--line)}
+.ruletabs button{font-size:12.5px;font-weight:600;color:var(--faint);padding:8px 14px;border-bottom:2px solid transparent;margin-bottom:-1px}
+.ruletabs button:hover{color:var(--muted)}
+.ruletabs button.on{color:var(--ink);border-bottom-color:#E8D25C}
+.ruletabbody{min-height:0}
+.ruletabbody .field-input{line-height:1.6}
+
 /* Empty project states */
 .emptyview{flex:1;border-top:1px solid var(--line-soft);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;background:#161923;text-align:center;padding:40px}
 .emptyview h3{font-size:16px;font-weight:650}

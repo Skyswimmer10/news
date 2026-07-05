@@ -103,6 +103,25 @@ describe('library → project import bridge', () => {
     expect(lib.stories['LIB-STORY-COURIER'].estMinutes).toBe(35);
   });
 
+  it('the library seeds game master rules with principle + descriptive tabs', () => {
+    expect(Object.keys(lib.gmRules).length).toBeGreaterThanOrEqual(3);
+    const r = lib.gmRules['LIB-GMR-001'];
+    expect(r.principle).toMatch(/distribute essential information/i);
+    expect(r.implementation && r.rationale && r.aiRule).toBeTruthy();
+  });
+
+  it('migrateLibrary backfills missing collections without dropping user data', async () => {
+    const { migrateLibrary } = await import('../data/seed.js');
+    // simulate an older saved library (rev 5) with a user-added item, no gmRules
+    const old = { ...makeLibrarySeed(), rev: 5 };
+    delete old.gmRules;
+    old.items['LIB-ITM-USER'] = { id: 'LIB-ITM-USER', name: 'My custom prop', type: 'gadget', description: '', propNotes: '', loreNotes: '', mechanicIds: [], sensorReqs: [], image: null };
+    const migrated = migrateLibrary(old);
+    expect(migrated.gmRules['LIB-GMR-001']).toBeDefined();      // backfilled
+    expect(migrated.items['LIB-ITM-USER'].name).toBe('My custom prop'); // preserved
+    expect(migrateLibrary(null).items).toBeDefined();           // null → fresh seed
+  });
+
   it('new game state is empty while the library stays populated', () => {
     const proj = makeEmptyProject('Fresh');
     expect(Object.keys(proj.items)).toHaveLength(0);

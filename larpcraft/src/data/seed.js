@@ -11,7 +11,7 @@
 //      game-state fields (build status, availability, placement, assignment,
 //      sensor battery) · edits affect only this game
 
-export const LIB_REV = 5;
+export const LIB_REV = 6;
 export const SEED_REV = 6;
 
 // Default item types — seeds the editable lib.itemTypes collection.
@@ -39,10 +39,17 @@ export const DEFAULT_ELEMENT_TYPES = {
   'lore': { id: 'lore', label: 'Lore fragment', color: '#A87BF0' },
 };
 
+// Descriptive tabs shown under a Game Master Rule's core principle.
+export const GM_RULE_TABS = [
+  { id: 'implementation', label: 'Implementation' },
+  { id: 'rationale', label: 'Rationale' },
+  { id: 'aiRule', label: 'AI Generation Rule' },
+];
+
 // Blank factories for the Library's "+ New …" buttons and id prefixes.
 export const LIB_PREFIX = {
   items: 'LIB-ITM-', locations: 'LIB-LOC-', mechanics: 'LIB-MECH-N', sensors: 'LIB-SEN-N',
-  primitives: 'LIB-PRIM-N', stories: 'LIB-STORY-N', elements: 'LIB-ELM-',
+  primitives: 'LIB-PRIM-N', stories: 'LIB-STORY-N', elements: 'LIB-ELM-', gmRules: 'LIB-GMR-',
 };
 export const LIB_BLANK = {
   items: (id) => ({ id, name: 'New item template', type: 'gadget', description: '', propNotes: '', loreNotes: '', mechanicIds: [], sensorReqs: [], image: null }),
@@ -52,7 +59,21 @@ export const LIB_BLANK = {
   primitives: (id) => ({ id, name: 'New primitive', baseKind: 'story', color: '#5CA8F5', icon: 'flag', inputs: ['in'], outputs: ['out'], defaultBody: '', estMinutes: 5, crew: 0 }),
   stories: (id) => ({ id, name: 'New structure', description: '', estMinutes: 15, nodes: {}, edges: [] }),
   elements: (id) => ({ id, name: 'New narrative element', etype: 'plot-hook', text: '', tags: [] }),
+  gmRules: (id) => ({ id, title: 'New game master rule', principle: '', implementation: '', rationale: '', aiRule: '' }),
 };
+
+// Additive migration: backfill any library collections a saved library is
+// missing (e.g. after adding gmRules) so a schema bump never wipes user data.
+export function migrateLibrary(saved) {
+  if (!saved || typeof saved !== 'object' || !saved.items) return makeLibrarySeed();
+  const seed = makeLibrarySeed();
+  const merged = { ...saved };
+  for (const key of Object.keys(seed)) {
+    if (merged[key] === undefined) merged[key] = seed[key];
+  }
+  merged.rev = LIB_REV;
+  return merged;
+}
 
 export function makeLibrarySeed() {
   return {
@@ -113,6 +134,36 @@ export function makeLibrarySeed() {
     // games. Add/delete from the Items and Narrative Elements tabs.
     itemTypes: { ...DEFAULT_ITEM_TYPES },
     elementTypes: { ...DEFAULT_ELEMENT_TYPES },
+
+    // GAME MASTER RULES: global design principles that shape the whole game.
+    // Each rule leads with a short core principle (≤4 sentences), then carries
+    // descriptive tabs (implementation / rationale / AI generation rule).
+    gmRules: {
+      'LIB-GMR-001': {
+        id: 'LIB-GMR-001',
+        title: 'Distributed Cooperation',
+        principle: 'Core cooperative stages should distribute essential information, access, or timing across multiple players so success comes from combining actions, not from one player directing everyone else.',
+        implementation: 'When generating a cooperative stage, give different players different pieces of the solution. One player might see a symbol, another might hear a sound cue, another might reach a physical sensor, and another might control timing. Start with information-splitting, then add physical separation or simultaneous triggers when the stage needs stronger cooperation. Use time pressure carefully, mainly for advanced or high-energy stages. The stage should still allow players to communicate, coordinate, and feel shared success rather than simply obeying one dominant player.',
+        rationale: 'This prevents the alpha-player problem while supporting real group cohesion. Players are not just standing near each other; they each hold something the group needs. This creates participation, communication, trust, and replayable variation without requiring new hardware for every stage.',
+        aiRule: 'Before finalizing a cooperative stage, check whether one player can complete it alone by holding all information, reaching all sensors, and controlling all timing. If yes, split one required element across players: information first, physical access second, timing pressure third. Ensure the split creates meaningful cooperation, not just artificial inconvenience.',
+      },
+      'LIB-GMR-002': {
+        id: 'LIB-GMR-002',
+        title: 'Fail Forward',
+        principle: 'A failed objective should redirect the story, never dead-end it. Every failure state must hand players a new, playable situation — a harder path, a consequence, or a lead — so momentum and morale survive setbacks.',
+        implementation: 'For each stage, author the failure branch as deliberately as the success branch. A failed puzzle might trigger an alarm that reroutes enemies, spend a resource, or unlock a slower manual bypass. Avoid outcomes that force players to stand idle or leave the game. Prefer consequences that change the board (new enemy behaviour, a locked route, a time penalty) over consequences that simply say "no".',
+        rationale: 'Real-life games cannot pause and retry cleanly; a hard dead-end strands players physically and kills a session. Fail-forward design keeps everyone in motion, turns mistakes into story, and lets weaker teams still reach an ending.',
+        aiRule: 'For every stage with a fail state, verify a defined next action exists on failure. If failure leads to "nothing happens" or "wait and try again", replace it with a consequence that changes the game state or opens an alternate route before finalizing.',
+      },
+      'LIB-GMR-003': {
+        id: 'LIB-GMR-003',
+        title: 'Safety Breaks Fiction',
+        principle: 'Player safety and consent always override the fiction. Any real-world hazard, medical need, or a player invoking a stop signal immediately pauses the in-game situation, no matter how dramatic the moment.',
+        implementation: 'Every stage must define a safe-word / stop-signal response and a nearest out-of-game safe zone. Physical challenges declare their real limits (no grappling, no stairs, no blindfold near hazards) up front. Crew are briefed that enforcing safety is never "breaking immersion" — it is part of the job. Mark exits, hazards and med locations on the location map.',
+        rationale: 'A single injury or ignored consent breach ends trust in the whole event. Encoding safety as a first-class rule keeps the game repeatable, insurable, and welcoming to new and vulnerable players.',
+        aiRule: 'Before finalizing any stage involving physical action, restricted senses, or time pressure, confirm it names a stop-signal behaviour and a safe zone. If either is missing, add it and flag the stage for a crew safety review.',
+      },
+    },
 
     // NARRATIVE ELEMENTS: single, self-contained story pieces — hooks, scripts,
     // bios, rumors, lore. Importable into a game as a ready-made story node.

@@ -7,6 +7,7 @@ import ScenarioFlow from './views/ScenarioFlow.jsx';
 import Teams from './views/Teams.jsx';
 import Locations from './views/Locations.jsx';
 import Library from './views/Library.jsx';
+import GameMasterRules from './views/GameMasterRules.jsx';
 
 const BUILD_VIEWS = [
   { id: 'flow', label: 'Narrative & Quests', color: 'var(--c-narrative)', comp: ScenarioFlow, count: (p) => Object.keys(p.nodes).length },
@@ -34,7 +35,9 @@ function Shell() {
   const [selection, setSelection] = useState(null);
 
   const all = [...BUILD_VIEWS, ...MANAGE_VIEWS];
-  const ActiveView = view === 'library' ? null : all.find((v) => v.id === view).comp;
+  const isLibrary = view === 'library';
+  const isRules = view === 'gmrules';
+  const ActiveView = isLibrary || isRules ? null : all.find((v) => v.id === view).comp;
 
   const navBtn = (v) => (
     <button key={v.id} className={`nav${view === v.id ? ' on' : ''}`} onClick={() => setView(v.id)}>
@@ -64,14 +67,20 @@ function Shell() {
             <span className="n">{g.colls.reduce((sum, c) => sum + Object.keys(lib[c]).length, 0)}</span>
           </button>
         ))}
+        <button className={`nav${isRules ? ' on' : ''}`} onClick={() => setView('gmrules')}>
+          <span className="sq" style={{ background: '#E8D25C' }} />Game Master Rules
+          <span className="n">{Object.keys(lib.gmRules ?? {}).length}</span>
+        </button>
         <div className="sidefoot">
           <button className="linkbtn" onClick={() => resetDemoData(libDispatch, dispatch)}>Reset demo data</button>
         </div>
       </div>
-      {view === 'library'
+      {isLibrary
         ? <Library group={libGroup} selection={selection} onSelect={setSelection} />
-        : <ActiveView selection={selection} onSelect={setSelection} />}
-      <Inspector selection={selection} onSelect={setSelection} />
+        : isRules
+          ? <GameMasterRules />
+          : <ActiveView selection={selection} onSelect={setSelection} />}
+      <Inspector selection={isRules ? null : selection} onSelect={setSelection} />
     </div>
   );
 }
