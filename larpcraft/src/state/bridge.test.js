@@ -102,6 +102,22 @@ describe('library → project import bridge', () => {
     expect(node).toMatchObject({ primitiveId: 'LIB-NAR-002', kind: 'story', title: 'Plot Twist', x: 300, y: 200 });
   });
 
+  it('mechanic structures use the same node-graph engine, keyed to mech nodes', async () => {
+    const { mechPrimitiveToStructNode } = await import('./bridge.js');
+    // seeded mechanic structures exist and are built from mechanic nodes
+    expect(Object.keys(lib.mechStructures).length).toBeGreaterThanOrEqual(2);
+    for (const st of Object.values(lib.mechStructures)) {
+      for (const n of Object.values(st.nodes)) expect(lib.mechPrimitives[n.primitiveId]).toBeDefined();
+    }
+    // dropping a mechanic node onto the canvas keeps its baseKind
+    const st = lib.mechStructures['LIB-MSTRUCT-DOOR'];
+    const node = mechPrimitiveToStructNode(lib.mechPrimitives['LIB-MPRIM-SENSOR'], st.nodes, 100, 100);
+    expect(node).toMatchObject({ primitiveId: 'LIB-MPRIM-SENSOR', kind: 'sensor', title: 'Sensor Trigger' });
+    // editing a mech-structure node via the generic reducer path (detached template)
+    const s2 = reducer(lib, { type: 'UPDATE_ENTITY', coll: 'mechStructures', id: 'LIB-MSTRUCT-DOOR', patch: { nodes: { ...st.nodes, S1: { ...st.nodes.S1, title: 'Renamed' } } } });
+    expect(s2.mechStructures['LIB-MSTRUCT-DOOR'].nodes.S1.title).toBe('Renamed');
+  });
+
   it('the narrative and mechanic node pools are cleanly separated', () => {
     // narrative holds only story content (no sensor/mechanic baseKinds)
     expect(lib.narrative['LIB-NAR-001']).toBeDefined();

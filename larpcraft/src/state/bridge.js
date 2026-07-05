@@ -146,3 +146,12 @@ export function narrativeToStructNode(narrative, structNodes, x, y) {
     x: Math.round(x), y: Math.round(y), body: narrative.body || '', color: narrative.color ?? null,
   };
 }
+
+// Instantiate a mechanic node INSIDE a mechanic structure (library editor).
+export function mechPrimitiveToStructNode(primitive, structNodes, x, y) {
+  const id = genId(structNodes, 'S');
+  return {
+    id, primitiveId: primitive.id, kind: primitive.baseKind, title: primitive.name,
+    x: Math.round(x), y: Math.round(y), body: primitive.defaultBody || '', color: primitive.color ?? null,
+  };
+}

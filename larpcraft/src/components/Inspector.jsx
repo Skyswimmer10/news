@@ -525,15 +525,16 @@ function LibNarrativePanel({ template }) {
   );
 }
 
-// A node inside a Story Structure's master graph (library editor selection).
-function LibStructNodePanel({ storyId, nodeId }) {
+// A node inside a structure's master graph (library editor selection). Works
+// for both story and mechanic structures via the `coll` on the selection.
+function LibStructNodePanel({ storyId, nodeId, coll = 'stories' }) {
   const lib = useLibrary();
   const libDispatch = useLibraryDispatch();
-  const st = lib.stories[storyId];
+  const st = lib[coll]?.[storyId];
   const n = st?.nodes[nodeId];
   if (!n) return <div className="empty">Node not found in this structure.</div>;
   const upd = (patch) => libDispatch({
-    type: 'UPDATE_ENTITY', coll: 'stories', id: storyId,
+    type: 'UPDATE_ENTITY', coll, id: storyId,
     patch: { nodes: { ...st.nodes, [nodeId]: { ...n, ...patch } } },
   });
   const prim = n.primitiveId ? (lib.narrative[n.primitiveId] || lib.mechPrimitives[n.primitiveId]) : null;
@@ -579,7 +580,7 @@ export default function Inspector({ selection, onSelect }) {
   else if (kind === 'lib-stories' && lib.stories[id]) body = <LibStoryPanel template={lib.stories[id]} />;
   else if (kind === 'lib-mechPrimitives' && lib.mechPrimitives[id]) body = <LibMechPrimitivePanel template={lib.mechPrimitives[id]} />;
   else if (kind === 'lib-narrative' && lib.narrative[id]) body = <LibNarrativePanel template={lib.narrative[id]} />;
-  else if (kind === 'lib-structnode') body = <LibStructNodePanel storyId={selection.storyId} nodeId={id} />;
+  else if (kind === 'lib-structnode') body = <LibStructNodePanel storyId={selection.storyId} nodeId={id} coll={selection.coll} />;
   else if (kind === 'node') {
     const r = resolveNode(s, lib, id);
     if (!r) body = null;

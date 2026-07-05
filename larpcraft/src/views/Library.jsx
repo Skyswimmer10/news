@@ -3,7 +3,7 @@ import { useLibrary, useLibraryDispatch } from '../state/store.jsx';
 import { Thumb, ENTITY_COLORS, PrimIcon } from '../components/bits.jsx';
 import FlowCanvas from '../components/FlowCanvas.jsx';
 import StructureThumb, { structNodeColor } from '../components/StructureThumb.jsx';
-import { narrativeToStructNode } from '../state/bridge.js';
+import { narrativeToStructNode, mechPrimitiveToStructNode } from '../state/bridge.js';
 import { LIB_BLANK, LIB_PREFIX } from '../data/seed.js';
 import { genId } from '../data/csvSchemas.js';
 import TypeChips from '../components/TypeChips.jsx';
@@ -13,6 +13,7 @@ const TABS = [
   { id: 'locations', label: 'Locations', color: 'var(--c-location)', addLabel: '+ New location template' },
   { id: 'mechanics', label: 'Rules & Mechanics', color: 'var(--c-mechanic)', addLabel: '+ New mechanic' },
   { id: 'mechPrimitives', label: 'Mechanic Nodes', color: '#A87BF0', addLabel: '+ New mechanic node' },
+  { id: 'mechStructures', label: 'Mechanic Structures', color: 'var(--c-mechanic)', addLabel: '+ New mechanic structure' },
   { id: 'sensors', label: 'Sensor hardware', color: 'var(--c-sensor)', addLabel: '+ New sensor type' },
   { id: 'narrative', label: 'Narrative', color: '#F08CB4', addLabel: '+ New narrative element' },
   { id: 'stories', label: 'Story Structures', color: 'var(--c-narrative)', addLabel: '+ New structure' },
@@ -22,8 +23,14 @@ const TABS = [
 // only story content; the mechanic node tree lives under Game Mechanics.
 const GROUP_META = {
   physical: { label: 'Physical', tabs: ['items', 'locations', 'sensors'] },
-  mechanics: { label: 'Game Mechanics', tabs: ['mechanics', 'mechPrimitives'] },
+  mechanics: { label: 'Game Mechanics', tabs: ['mechanics', 'mechPrimitives', 'mechStructures'] },
   story: { label: 'Story & Narrative', tabs: ['narrative', 'stories'] },
+};
+
+// The two structure kinds share one editor: same canvas, different node pool.
+const STRUCT_KINDS = {
+  stories: { paletteColl: 'narrative', paletteKind: 'lib-narrative', build: narrativeToStructNode, paletteLabel: 'Narrative nodes', paletteHint: 'Story content only. Drag onto the canvas to add a beat.', backLabel: '← Story Structures' },
+  mechStructures: { paletteColl: 'mechPrimitives', paletteKind: 'lib-mechPrimitives', build: mechPrimitiveToStructNode, paletteLabel: 'Mechanic nodes', paletteHint: 'Sensors, puzzles, challenges, timers. Drag onto the canvas.', backLabel: '← Mechanic Structures' },
 };
 
 const CATEGORY_COLORS = ['#F08CB4', '#5CA8F5', '#E0A23C', '#43BF87', '#A87BF0', '#E8D25C', '#3EC6D6', '#E86464'];
@@ -35,41 +42,43 @@ function PaletteNode({ n, onSelect }) {
       onDragStart={(e) => { e.dataTransfer.setData('text/x-palette', n.id); e.dataTransfer.effectAllowed = 'copy'; }}
       onClick={onSelect} title={`${n.body || ''} (drag onto the canvas)`}>
       <PrimIcon icon={n.icon} color={n.color} />
-      <div><b>{n.name}</b><small>{n.category}</small></div>
+      <div><b>{n.name}</b><small>{n.category || n.baseKind}</small></div>
     </div>
   );
 }
 
-// Editor for one Story Structure: a pure narrative graph. The palette offers
-// only narrative nodes (strict separation from mechanics). Every change
-// dispatches to the LIBRARY store, updating the master template.
-function StructureEditor({ structure, selection, onSelect, onBack }) {
+// One editor drives both Story Structures and Mechanic Structures: the same
+// FlowCanvas (drag, connect, disconnect, recolor, delete, copy/paste, edge
+// labels), only the node palette differs. Every change updates the master
+// template in the LIBRARY store.
+function StructureEditor({ coll, structure, selection, onSelect, onBack }) {
   const lib = useLibrary();
   const libDispatch = useLibraryDispatch();
-  const patch = (p) => libDispatch({ type: 'UPDATE_ENTITY', coll: 'stories', id: structure.id, patch: p });
+  const cfg = STRUCT_KINDS[coll];
+  const patch = (p) => libDispatch({ type: 'UPDATE_ENTITY', coll, id: structure.id, patch: p });
   const selId = selection?.kind === 'lib-structnode' && selection.storyId === structure.id ? selection.id : null;
 
   return (
     <div className="main">
       <div className="mhead">
         <div>
-          <div className="crumb"><button className="linkbtn" onClick={onBack}>← Story Structures</button></div>
+          <div className="crumb"><button className="linkbtn" onClick={onBack}>{cfg.backLabel}</button></div>
           <h2>{structure.name} <span className="libbadge inline">master template</span></h2>
         </div>
         <div className="right"><span className="mono dim">~{structure.estMinutes} min · {Object.keys(structure.nodes).length} nodes · {structure.edges.length} links</span></div>
       </div>
       <div className="structeditor">
         <div className="palette">
-          <div className="lab">Narrative nodes</div>
-          <div className="hint" style={{ marginBottom: 9 }}>Story content only. Drag onto the canvas to add a beat.</div>
-          {Object.values(lib.narrative).map((n) => (
-            <PaletteNode key={n.id} n={n} onSelect={() => onSelect({ kind: 'lib-narrative', id: n.id })} />
+          <div className="lab">{cfg.paletteLabel}</div>
+          <div className="hint" style={{ marginBottom: 9 }}>{cfg.paletteHint}</div>
+          {Object.values(lib[cfg.paletteColl]).map((n) => (
+            <PaletteNode key={n.id} n={n} onSelect={() => onSelect({ kind: cfg.paletteKind, id: n.id })} />
           ))}
         </div>
         <FlowCanvas
           nodes={structure.nodes} edges={structure.edges} selId={selId}
           colorOf={(n) => structNodeColor(n, lib)}
-          onSelect={(id) => onSelect({ kind: 'lib-structnode', id, storyId: structure.id })}
+          onSelect={(id) => onSelect({ kind: 'lib-structnode', id, storyId: structure.id, coll })}
           onMove={(id, x, y) => patch({ nodes: { ...structure.nodes, [id]: { ...structure.nodes[id], x, y } } })}
           onConnect={(from, to) => {
             if (structure.edges.some((e) => e.from === from && e.to === to)) return;
@@ -77,18 +86,18 @@ function StructureEditor({ structure, selection, onSelect, onBack }) {
           }}
           onRemoveEdge={(e) => patch({ edges: structure.edges.filter((x) => !(x.from === e.from && x.to === e.to)) })}
           onSetColor={(id, color) => patch({ nodes: { ...structure.nodes, [id]: { ...structure.nodes[id], color } } })}
-          onDropPalette={(narrativeId, x, y) => {
-            const n = lib.narrative[narrativeId];
-            if (!n) return;
-            const node = narrativeToStructNode(n, structure.nodes, x, y);
+          onDropPalette={(nodeTypeId, x, y) => {
+            const t = lib[cfg.paletteColl][nodeTypeId];
+            if (!t) return;
+            const node = cfg.build(t, structure.nodes, x, y);
             patch({ nodes: { ...structure.nodes, [node.id]: node } });
-            onSelect({ kind: 'lib-structnode', id: node.id, storyId: structure.id });
+            onSelect({ kind: 'lib-structnode', id: node.id, storyId: structure.id, coll });
           }}
           onPasteNode={(p) => {
             const id = genId(structure.nodes, 'S');
             const node = { id, primitiveId: p.primitiveId ?? null, kind: p.kind, title: p.title, x: p.x, y: p.y, body: p.body, color: p.color ?? null, image: p.image ?? null };
             patch({ nodes: { ...structure.nodes, [id]: node } });
-            onSelect({ kind: 'lib-structnode', id, storyId: structure.id });
+            onSelect({ kind: 'lib-structnode', id, storyId: structure.id, coll });
           }}
           onDeleteNode={(id) => {
             const nodes = { ...structure.nodes };
@@ -100,7 +109,7 @@ function StructureEditor({ structure, selection, onSelect, onBack }) {
         />
       </div>
       <div className="statusbar">
-        <span>Editing the <b>master template</b> — pure narrative graph · <b>Ctrl+C</b>/<b>V</b> copy-paste · <b>Delete</b> removes a node.</span>
+        <span>Editing the <b>master template</b> · drag to arrange · <b>○ port</b> connects, click a link to disconnect · <b>Ctrl+C</b>/<b>V</b> copy-paste · <b>Delete</b> removes a node.</span>
       </div>
     </div>
   );
@@ -111,14 +120,14 @@ export default function Library({ group = 'physical', selection, onSelect }) {
   const libDispatch = useLibraryDispatch();
   const groupMeta = GROUP_META[group] ?? GROUP_META.physical;
   const [tab, setTab] = useState(groupMeta.tabs[0]);
-  const [editingStory, setEditingStory] = useState(null);
+  const [editing, setEditing] = useState(null); // { coll, id } for a structure being edited
   const [narrFilter, setNarrFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
   const selId = selection?.kind?.startsWith('lib-') ? selection.id : null;
   const pick = (coll, id) => onSelect({ kind: `lib-${coll}`, id });
 
   React.useEffect(() => {
-    if (!groupMeta.tabs.includes(tab)) { setTab(groupMeta.tabs[0]); setEditingStory(null); }
+    if (!groupMeta.tabs.includes(tab)) { setTab(groupMeta.tabs[0]); setEditing(null); }
   }, [group]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const addNew = () => {
@@ -132,7 +141,7 @@ export default function Library({ group = 'physical', selection, onSelect }) {
     }
     libDispatch({ type: 'ADD_ENTITY', coll: tab, entity });
     pick(tab, id);
-    if (tab === 'stories') setEditingStory(id);
+    if (tab === 'stories' || tab === 'mechStructures') setEditing({ coll: tab, id });
   };
   const activeTab = TABS.find((t) => t.id === tab) ?? TABS[0];
 
@@ -160,9 +169,9 @@ export default function Library({ group = 'physical', selection, onSelect }) {
     if (narrFilter === key) setNarrFilter('all');
   };
 
-  if (editingStory && lib.stories[editingStory]) {
-    return <StructureEditor structure={lib.stories[editingStory]} selection={selection} onSelect={onSelect}
-      onBack={() => { setEditingStory(null); setTab('stories'); }} />;
+  if (editing && lib[editing.coll]?.[editing.id]) {
+    return <StructureEditor coll={editing.coll} structure={lib[editing.coll][editing.id]} selection={selection} onSelect={onSelect}
+      onBack={() => { setEditing(null); setTab(editing.coll); }} />;
   }
 
   return (
@@ -294,11 +303,11 @@ export default function Library({ group = 'physical', selection, onSelect }) {
         </div>
       )}
 
-      {tab === 'stories' && (
+      {(tab === 'stories' || tab === 'mechStructures') && (
         <div className="structgrid pad">
-          {Object.values(lib.stories).map((st) => (
+          {Object.values(lib[tab]).map((st) => (
             <button key={st.id} className={`structcard${selId === st.id ? ' sel' : ''}`}
-              onClick={() => { pick('stories', st.id); setEditingStory(st.id); }}>
+              onClick={() => { pick(tab, st.id); setEditing({ coll: tab, id: st.id }); }}>
               <StructureThumb structure={st} lib={lib} />
               <b>{st.name}</b>
               <small>{st.description}</small>
@@ -309,6 +318,9 @@ export default function Library({ group = 'physical', selection, onSelect }) {
               </div>
             </button>
           ))}
+          {Object.keys(lib[tab]).length === 0 && (
+            <div className="empty" style={{ gridColumn: '1/-1' }}>No structures yet — <b>{activeTab.addLabel}</b> opens a blank canvas.</div>
+          )}
         </div>
       )}
 

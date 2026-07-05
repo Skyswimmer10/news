@@ -11,7 +11,7 @@
 //      game-state fields (build status, availability, placement, assignment,
 //      sensor battery) · edits affect only this game
 
-export const LIB_REV = 7;
+export const LIB_REV = 8;
 export const SEED_REV = 6;
 
 // Default item types — seeds the editable lib.itemTypes collection.
@@ -51,7 +51,8 @@ export const GM_RULE_TABS = [
 // Blank factories for the Library's "+ New …" buttons and id prefixes.
 export const LIB_PREFIX = {
   items: 'LIB-ITM-', locations: 'LIB-LOC-', mechanics: 'LIB-MECH-N', sensors: 'LIB-SEN-N',
-  narrative: 'LIB-NAR-', mechPrimitives: 'LIB-MPRIM-', stories: 'LIB-STORY-N', gmRules: 'LIB-GMR-',
+  narrative: 'LIB-NAR-', mechPrimitives: 'LIB-MPRIM-', stories: 'LIB-STORY-N',
+  mechStructures: 'LIB-MSTRUCT-N', gmRules: 'LIB-GMR-',
 };
 export const LIB_BLANK = {
   items: (id) => ({ id, name: 'New item template', type: 'gadget', description: '', propNotes: '', loreNotes: '', mechanicIds: [], sensorReqs: [], image: null }),
@@ -64,6 +65,7 @@ export const LIB_BLANK = {
   // Mechanic node type (sensor/physical/task) for the Game Mechanics node tree.
   mechPrimitives: (id) => ({ id, name: 'New mechanic node', baseKind: 'mechanic', color: '#A87BF0', icon: 'cog', inputs: ['in'], outputs: ['out'], defaultBody: '', estMinutes: 5, crew: 0 }),
   stories: (id) => ({ id, name: 'New structure', description: '', estMinutes: 15, nodes: {}, edges: [] }),
+  mechStructures: (id) => ({ id, name: 'New mechanic structure', description: '', estMinutes: 10, nodes: {}, edges: [] }),
   gmRules: (id) => ({ id, title: 'New game master rule', principle: '', implementation: '', rationale: '', aiRule: '' }),
 };
 
@@ -250,6 +252,42 @@ export function makeLibrarySeed() {
           { from: 'S1', to: 'S2', label: 'a lead', color: null },
           { from: 'S2', to: 'S3', label: 'follow up', color: null },
           { from: 'S3', to: 'S4', label: 'the case breaks', color: null },
+        ],
+      },
+    },
+
+    // MECHANIC STRUCTURES: saved, editable graphs of mechanic nodes — the
+    // mechanics counterpart to Story Structures. Same node canvas, mechanic
+    // palette. Built from Mechanic Nodes.
+    mechStructures: {
+      'LIB-MSTRUCT-DOOR': {
+        id: 'LIB-MSTRUCT-DOOR', name: 'Multi-Switch Door',
+        description: 'Cooperative gate: reach the door, hold several switches at once, a sensor confirms, a timer pressures.',
+        estMinutes: 15,
+        nodes: {
+          S1: { id: 'S1', primitiveId: 'LIB-MPRIM-WAYPT', kind: 'location', title: 'Reach the door', x: 40, y: 120, body: 'Team gathers at the sealed door.', color: null },
+          S2: { id: 'S2', primitiveId: 'LIB-MPRIM-PUZZLE', kind: 'mechanic', title: 'Hold the switches', x: 340, y: 60, body: 'All switches must be held at once.', color: null },
+          S3: { id: 'S3', primitiveId: 'LIB-MPRIM-SENSOR', kind: 'sensor', title: 'Door sensor', x: 640, y: 120, body: 'Sensor confirms the door opened.', color: null },
+          S4: { id: 'S4', primitiveId: 'LIB-MPRIM-TIMER', kind: 'mechanic', title: 'Reset timer', x: 940, y: 60, body: 'Door re-locks if the timer expires.', color: null },
+        },
+        edges: [
+          { from: 'S1', to: 'S2', label: 'assemble', color: null },
+          { from: 'S2', to: 'S3', label: 'all held', color: null },
+          { from: 'S3', to: 'S4', label: 'ON fired', color: null },
+        ],
+      },
+      'LIB-MSTRUCT-CHASE': {
+        id: 'LIB-MSTRUCT-CHASE', name: 'Handoff Under Pursuit',
+        description: 'An item handoff completed while a physical challenge (pursuit) is running.',
+        estMinutes: 12,
+        nodes: {
+          S1: { id: 'S1', primitiveId: 'LIB-MPRIM-WAYPT', kind: 'location', title: 'Rendezvous', x: 40, y: 100, body: 'Runners meet at the drop.', color: null },
+          S2: { id: 'S2', primitiveId: 'LIB-MPRIM-HANDOFF', kind: 'objective', title: 'The Handoff', x: 340, y: 40, body: 'Pass the item, hand to hand.', color: null },
+          S3: { id: 'S3', primitiveId: 'LIB-MPRIM-PHYS', kind: 'enemy', title: 'Break contact', x: 640, y: 100, body: 'Evade the pursuit crew to escape.', color: null },
+        },
+        edges: [
+          { from: 'S1', to: 'S2', label: 'in position', color: null },
+          { from: 'S2', to: 'S3', label: 'item passed', color: null },
         ],
       },
     },
