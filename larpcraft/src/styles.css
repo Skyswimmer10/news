@@ -148,20 +148,42 @@ input,select,textarea{font:inherit}
 .stage .marker:hover .mlabel .x{display:inline}
 .stage .mlabel .x:hover{color:var(--bad)}
 
-/* Per-game hero backdrop: sits behind the workspace; content surfaces are
-   slightly translucent so it shows through at the chosen opacity. */
+/* Per-game hero backdrop. Two placements:
+   · 'app'     — behind the whole workspace (shows in gaps + header)
+   · 'content' — confined to the main content column, with the list/gallery
+     surfaces made translucent so it reads *behind the elements* themselves. */
 .chrome{position:relative}
 .herobg{position:absolute;inset:0;z-index:0;background-size:cover;background-position:center;pointer-events:none}
+.herobg.content{left:var(--side-w);right:var(--insp-w)}
 .sidebar,.inspector,.main{position:relative;z-index:1}
+/* In content placement the working surfaces go transparent so the backdrop
+   shows through behind the cards/rows (the area showing most elements). */
+.hero-content .gallery,
+.hero-content .librows,
+.hero-content .gridwrap,
+.hero-content .teamgrid,
+.hero-content .structgrid.pad,
+.hero-content .elemwrap,
+.hero-content .emptyview{background-color:transparent}
+.hero-content .main .mhead,
+.hero-content .main .toolrow,
+.hero-content .main .statusbar{background-color:transparent}
+.hero-content .statusbar{backdrop-filter:blur(2px)}
 
 /* node images + edge label editing */
 .nimg{display:block;width:100%;max-height:110px;object-fit:cover;border-radius:7px;margin-bottom:7px;border:1px solid var(--line-soft)}
 .elab span.editable{cursor:text;border-bottom:1px dotted currentColor}
 .elab span.editable:hover{opacity:.8}
 
-/* File menu slider */
+/* File menu slider + placement segmented control */
 .menuslider{display:flex;flex-direction:column;gap:5px;padding:8px 11px;font-size:11.5px;color:var(--muted)}
 .menuslider input{width:100%;accent-color:var(--brand)}
+.menuseg{display:flex;flex-direction:column;gap:6px;padding:6px 11px 8px;font-size:11.5px;color:var(--muted)}
+.menuseg .segrow{display:flex;border:1px solid var(--line);border-radius:7px;overflow:hidden}
+.menuseg .segrow button{flex:1;padding:6px 8px;font-size:11.5px;color:var(--muted);border-left:1px solid var(--line)}
+.menuseg .segrow button:first-child{border-left:0}
+.menuseg .segrow button.on{background:var(--brand);color:#fff}
+.menuseg .segrow button:not(.on):hover{background:var(--raised);color:var(--ink)}
 
 /* Empty project states */
 .emptyview{flex:1;border-top:1px solid var(--line-soft);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;background:#161923;text-align:center;padding:40px}
@@ -170,7 +192,7 @@ input,select,textarea{font:inherit}
 .emptyview .chips{justify-content:center;margin-top:6px}
 .btn.wide{width:100%}
 
-.chrome{flex:1;display:grid;grid-template-columns:216px 1fr 320px;min-height:0}
+.chrome{flex:1;display:grid;grid-template-columns:216px 1fr 320px;min-height:0;--side-w:216px;--insp-w:320px}
 .sidebar{background:var(--panel);border-right:1px solid var(--line-soft);padding:14px 10px;display:flex;flex-direction:column;gap:2px}
 .proj{display:flex;align-items:center;gap:9px;padding:9px 10px;margin-bottom:10px;background:var(--raised);border:1px solid var(--line);border-radius:9px}
 .proj b{font-size:12.5px}.proj small{display:block;color:var(--faint);font-size:11px}

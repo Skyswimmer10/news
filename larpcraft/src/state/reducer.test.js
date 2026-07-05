@@ -143,6 +143,13 @@ describe('scenario graph editing', () => {
     expect(s.locations['LOC-S7'].image).toBeNull(); // cover untouched
   });
 
+  it('hero backdrop placement toggles between app and content', () => {
+    expect(seed().meta.hero.placement).toBe('app');
+    const s = reducer(seed(), { type: 'SET_META', patch: { hero: { image: { dataUrl: 'data:x' }, opacity: 0.3, placement: 'content' } } });
+    expect(s.meta.hero.placement).toBe('content');
+    expect(s.meta.hero.opacity).toBe(0.3);
+  });
+
   it('node drag position and color pick persist via UPDATE_ENTITY', () => {
     let s = reducer(seed(), { type: 'UPDATE_ENTITY', coll: 'nodes', id: 'N-BRIEF', patch: { x: 500, y: 250 } });
     s = reducer(s, { type: 'UPDATE_ENTITY', coll: 'nodes', id: 'N-BRIEF', patch: { color: '#E8D25C' } });

@@ -88,7 +88,16 @@ export default function ProjectMenu() {
                 <input type="range" min="5" max="70" value={Math.round((hero.opacity ?? 0.25) * 100)}
                   onChange={(e) => dispatch({ type: 'SET_META', patch: { hero: { ...hero, opacity: +e.target.value / 100 } } })} />
               </div>
-              <button onClick={() => dispatch({ type: 'SET_META', patch: { hero: { image: null, opacity: hero.opacity } } })}>Remove backdrop</button>
+              <div className="menuseg">
+                <span>Backdrop placement</span>
+                <div className="segrow">
+                  <button className={(hero.placement || 'app') === 'app' ? 'on' : ''}
+                    onClick={() => dispatch({ type: 'SET_META', patch: { hero: { ...hero, placement: 'app' } } })}>Whole app</button>
+                  <button className={hero.placement === 'content' ? 'on' : ''}
+                    onClick={() => dispatch({ type: 'SET_META', patch: { hero: { ...hero, placement: 'content' } } })}>Content area</button>
+                </div>
+              </div>
+              <button onClick={() => dispatch({ type: 'SET_META', patch: { hero: { image: null, opacity: hero.opacity, placement: hero.placement } } })}>Remove backdrop</button>
             </>
           )}
           <div className="menusep" />

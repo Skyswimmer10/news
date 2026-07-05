@@ -43,10 +43,12 @@ function Shell() {
   );
 
   const hero = proj.meta.hero;
+  const heroPlacement = hero?.placement || 'app';
   return (
-    <div className="chrome">
+    <div className={`chrome${hero?.image?.dataUrl ? ` has-hero hero-${heroPlacement}` : ''}`}>
       {hero?.image?.dataUrl && (
-        <div className="herobg" style={{ backgroundImage: `url(${hero.image.dataUrl})`, opacity: hero.opacity ?? 0.25 }} />
+        <div className={`herobg${heroPlacement === 'content' ? ' content' : ''}`}
+          style={{ backgroundImage: `url(${hero.image.dataUrl})`, opacity: hero.opacity ?? 0.25 }} />
       )}
       <div className="sidebar">
         <div className="proj"><span className="dot" /><div><b>{proj.meta.name}</b><small>Active game · {Object.keys(proj.items).length} items</small></div></div>

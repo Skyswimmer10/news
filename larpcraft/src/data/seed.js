@@ -171,8 +171,9 @@ export function makeEmptyProject(name = 'Untitled game') {
   return {
     rev: SEED_REV,
     // hero: per-game backdrop image shown behind the workspace, with
-    // adjustable opacity (File menu → Set game backdrop…).
-    meta: { name, prefix: 'GAME', createdAt: Date.now(), hero: { image: null, opacity: 0.25 } },
+    // adjustable opacity and placement ('app' whole workspace | 'content'
+    // behind the main content area). File menu → Set game backdrop…
+    meta: { name, prefix: 'GAME', createdAt: Date.now(), hero: { image: null, opacity: 0.25, placement: 'app' } },
     items: {}, locations: {}, sensors: {}, nodes: {}, edges: [], teams: {}, players: {},
   };
 }
@@ -181,7 +182,7 @@ export function makeEmptyProject(name = 'Untitled game') {
 export function makeProjectSeed() {
   return {
     rev: SEED_REV,
-    meta: { name: 'Operation Chimera', prefix: 'CHM', createdAt: Date.now(), hero: { image: null, opacity: 0.25 } },
+    meta: { name: 'Operation Chimera', prefix: 'CHM', createdAt: Date.now(), hero: { image: null, opacity: 0.25, placement: 'app' } },
 
     // Sensor hardware INSTANCES: template + game state (status, placement,
     // assignment, battery).
