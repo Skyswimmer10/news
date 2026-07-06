@@ -4,9 +4,10 @@ import { ENTITY_COLORS } from '../components/bits.jsx';
 import FlowCanvas from '../components/FlowCanvas.jsx';
 import { storyTrackToStructure } from '../state/bridge.js';
 import { genId } from '../data/csvSchemas.js';
-import { LIB_PREFIX } from '../data/seed.js';
+import { LIB_PREFIX, NARRATIVE_KINDS } from '../data/seed.js';
 
-const isStory = (n) => n.kind === 'story' || !!n.elementId;
+// Story-side nodes (the macro track) vs. mechanical task nodes (the timeline).
+const isStory = (n) => NARRATIVE_KINDS.includes(n.kind) || !!n.elementId;
 const KIND_LABEL = { location: 'Location', objective: 'Objective', enemy: 'Enemy', mechanic: 'Mechanic', sensor: 'Sensor' };
 const nodeColor = (n) => n.color || ENTITY_COLORS[n.kind] || '#8B92A6';
 const pad2 = (v) => String(v).padStart(2, '0');

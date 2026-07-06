@@ -8,6 +8,7 @@
 // template), and the instance's sensorReqs are rewritten to instance ids.
 
 import { genId } from '../data/csvSchemas.js';
+import { NARRATIVE_KINDS } from '../data/seed.js';
 
 const sensorInstance = (template, id) => ({
   id, templateId: template.id, kind: template.kind, label: template.label,
@@ -151,7 +152,7 @@ export function narrativeToStructNode(narrative, structNodes, x, y) {
 // between them) to the Library as a reusable Story Structure. Positions come
 // from the Weaver's story-track layout so the saved template mirrors it.
 export function storyTrackToStructure(proj, id, name) {
-  const storyNodes = Object.values(proj.nodes).filter((n) => n.kind === 'story' || n.elementId);
+  const storyNodes = Object.values(proj.nodes).filter((n) => NARRATIVE_KINDS.includes(n.kind) || n.elementId);
   const idMap = {};
   const nodes = {};
   storyNodes.forEach((n, i) => {

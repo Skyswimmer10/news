@@ -8,7 +8,7 @@
 const ITEM_TYPES = ['artifact', 'gadget', 'consumable'];
 const BUILD = ['concept', 'design', 'build', 'tested', 'packed'];
 const AVAIL = ['ready', 'in-use', 'deployed', 'missing'];
-const NODE_KINDS = ['story', 'location', 'objective', 'enemy', 'mechanic', 'sensor'];
+const NODE_KINDS = ['story', 'location', 'objective', 'enemy', 'mechanic', 'sensor', 'beat', 'reveal', 'branch', 'fact', 'converge', 'timed', 'recovery'];
 
 export function genId(existing, prefix) {
   let n = Object.keys(existing).length + 1;

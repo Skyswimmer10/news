@@ -79,8 +79,10 @@ describe('library → project import bridge', () => {
   it('storyTrackToStructure saves the macro story arc as a Story Structure', () => {
     const proj = makeProjectSeed();
     const struct = storyTrackToStructure(proj, 'LIB-STORY-N001', 'Chimera arc');
-    // only story-kind nodes, remapped to S-ids
-    expect(Object.keys(struct.nodes).length).toBe(3); // N-BRIEF, N-TWIST, N-END
+    // only narrative-side nodes (beat/branch/reveal/timed/recovery), remapped
+    // to S-ids and normalised to kind 'story' for the library structure.
+    const narrativeCount = Object.values(proj.nodes).filter((n) => ['story', 'beat', 'reveal', 'branch', 'fact', 'converge', 'timed', 'recovery'].includes(n.kind)).length;
+    expect(Object.keys(struct.nodes).length).toBe(narrativeCount);
     expect(Object.values(struct.nodes).every((n) => n.kind === 'story')).toBe(true);
     // the N-TWIST → N-END story edge survives, remapped
     const titles = Object.values(struct.nodes).map((n) => n.title);

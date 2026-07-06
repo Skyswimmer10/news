@@ -2,8 +2,12 @@ import React, { useState } from 'react';
 import { useGame, useDispatch, useLibrary, useLibraryDispatch } from '../state/store.jsx';
 import { resolveNode, itemsAssignedToPlayer, sensorsAssignedToPlayer } from '../state/reducer.js';
 import { importItem, importLocation, importSensor, importStory, importNarrative, importMechPrimitive } from '../state/bridge.js';
-import { Chip, SectionLabel, BuildFlow, Pill, ENTITY_COLORS } from './bits.jsx';
+import { Chip, SectionLabel, BuildFlow, Pill, ENTITY_COLORS, PrimIcon } from './bits.jsx';
 import ImageUploader from './ImageUploader.jsx';
+import { NARR_NODE_TYPES, NARRATIVE_KINDS, FACT_KINDS } from '../data/seed.js';
+
+const minToTime = (m) => (Number.isFinite(m) ? `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}` : '');
+const timeToMin = (t) => { const [h, m] = (t || '').split(':').map(Number); return Number.isFinite(h) && Number.isFinite(m) ? h * 60 + m : null; };
 
 function TextField({ label, value, onCommit, textarea, placeholder }) {
   const [draft, setDraft] = React.useState(value ?? '');
@@ -254,18 +258,124 @@ function NodePanel({ node }) {
   const lib = useLibrary();
   const dispatch = useDispatch();
   const upd = (patch) => dispatch({ type: 'UPDATE_ENTITY', coll: 'nodes', id: node.id, patch });
+  const updEdge = (e, patch) => dispatch({ type: 'UPDATE_EDGE', from: e.from, to: e.to, patch });
   const prim = node.primitiveId ? (lib.narrative[node.primitiveId] || lib.mechPrimitives[node.primitiveId]) : null;
+  const nt = NARR_NODE_TYPES[node.kind];
   const color = node.color || prim?.color || ENTITY_COLORS[node.kind] || '#8B92A6';
-  const connections = s.edges.filter((e) => e.from === node.id || e.to === node.id);
+  const facts = s.facts || {};
+  const outgoing = s.edges.filter((e) => e.from === node.id);
+  const incoming = s.edges.filter((e) => e.to === node.id);
+  const sets = node.sets || [];
+  const setFactIds = sets.map((x) => x.factId);
+  const unsetFacts = Object.values(facts).filter((f) => !setFactIds.includes(f.id));
   return (
     <>
       {prim && <InstanceBadge templateId={prim.id} />}
       <div className="ihead">
-        <div className="ihrow"><span className="sq big" style={{ background: color }} /><h3>{node.title}</h3></div>
-        <div className="sub">{node.kind} node · {node.id}{prim && <> · from <b>{prim.name}</b></>}</div>
+        <div className="ihrow"><span className="sq big" style={{ background: color }}>{nt && <PrimIcon icon={nt.icon} color="#fff" size={13} />}</span><h3>{node.title}</h3></div>
+        <div className="sub">{nt?.label ?? node.kind} node · {node.id}{prim && <> · from <b>{prim.name}</b></>}</div>
       </div>
+
+      <div className="isect">
+        <SectionLabel>Node type</SectionLabel>
+        <select className="field-input" value={node.kind} onChange={(e) => upd({ kind: e.target.value })}>
+          {Object.values(NARR_NODE_TYPES).map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
+          {!nt && <option value={node.kind}>{node.kind} (legacy / mechanical)</option>}
+        </select>
+        {nt && <div className="hint">{nt.blurb}</div>}
+      </div>
+
       <TextField label="Node title" value={node.title} onCommit={(v) => upd({ title: v })} />
-      <TextField label="Notes" textarea value={node.body} onCommit={(v) => upd({ body: v })} />
+      <TextField label={node.kind === 'reveal' ? 'What players learn · shown / read aloud' : 'Notes'} textarea value={node.body} onCommit={(v) => upd({ body: v })} />
+
+      <div className="isect">
+        <SectionLabel>Team lane</SectionLabel>
+        <select className="field-input" value={node.teamId ?? ''} onChange={(e) => upd({ teamId: e.target.value || null })}>
+          <option value="">Shared · all teams</option>
+          {Object.values(s.teams).map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+        </select>
+      </div>
+
+      {node.kind === 'timed' && (
+        <div className="isect">
+          <SectionLabel>Fires at (clock time)</SectionLabel>
+          <input className="field-input" type="time" value={minToTime(node.startMin ?? 540)}
+            onChange={(e) => { const m = timeToMin(e.target.value); if (m != null) upd({ startMin: m }); }} />
+          <div className="hint">A timed event fires at this time regardless of what players are doing.</div>
+        </div>
+      )}
+
+      {/* Fact changes this node records as now true / no longer true. */}
+      <div className="isect">
+        <SectionLabel>Records facts{node.kind === 'fact' ? '' : ' · optional'}</SectionLabel>
+        <div className="senslist">
+          {sets.map((x) => {
+            const f = facts[x.factId];
+            if (!f) return null;
+            const fk = FACT_KINDS[f.kind] || { color: '#8B92A6', label: f.kind };
+            return (
+              <div className="sensrow" key={x.factId}>
+                <span className="sq" style={{ background: fk.color }} />
+                <div><b>{f.name}</b> <span className="dim">{fk.label}</span></div>
+                <button className="tinytoggle" title="Toggle set / unset"
+                  onClick={() => upd({ sets: sets.map((y) => (y.factId === x.factId ? { ...y, to: y.to === 'unset' ? 'set' : 'unset' } : y)) })}>
+                  {x.to === 'unset' ? 'clears' : 'sets'}
+                </button>
+                <button className="x" onClick={() => upd({ sets: sets.filter((y) => y.factId !== x.factId) })} aria-label="Remove">×</button>
+              </div>
+            );
+          })}
+          <select className="chip-add" value="" onChange={(e) => e.target.value && upd({ sets: [...sets, { factId: e.target.value, to: 'set' }] })}>
+            <option value="">+ record a fact…</option>
+            {unsetFacts.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+          </select>
+          {Object.keys(facts).length === 0 && <div className="hint">No facts yet — add them in the Facts &amp; State section.</div>}
+        </div>
+      </div>
+
+      {/* Outgoing branch conditions: each link out of this node carries a
+          plain-language condition a GM or sensor decides, optionally tied to a
+          tracked fact. This is the live-game replacement for coded branching. */}
+      <div className="isect">
+        <SectionLabel>Outgoing conditions{node.kind === 'branch' ? '' : ' · optional'}</SectionLabel>
+        {outgoing.length === 0 && <div className="hint">No outgoing links yet — drag from the node's ○ port on the canvas.</div>}
+        {outgoing.map((e, i) => {
+          const target = s.nodes[e.to];
+          const f = e.factId && facts[e.factId];
+          const fk = f && (FACT_KINDS[f.kind] || { color: '#8B92A6' });
+          return (
+            <div className="condrow" key={i}>
+              <div className="condhead">→ <b>{target?.title ?? e.to}</b></div>
+              <input className="field-input" placeholder='Condition, e.g. "IF key retrieved"'
+                defaultValue={e.label || ''} onBlur={(ev) => { if (ev.target.value !== (e.label || '')) updEdge(e, { label: ev.target.value }); }} />
+              <div className="condfact">
+                <select className="field-input" value={e.factId || ''} onChange={(ev) => updEdge(e, { factId: ev.target.value || null, expect: ev.target.value ? (e.expect || 'set') : null })}>
+                  <option value="">— no fact gate —</option>
+                  {Object.values(facts).map((ff) => <option key={ff.id} value={ff.id}>{ff.name}</option>)}
+                </select>
+                {e.factId && (
+                  <select className="field-input narrow" value={e.expect || 'set'} onChange={(ev) => updEdge(e, { expect: ev.target.value })}>
+                    <option value="set">is set</option>
+                    <option value="unset">is NOT set</option>
+                  </select>
+                )}
+                {f && <span className="factchip sm" style={{ borderColor: fk.color, color: fk.color }}><i style={{ background: fk.color }} />{f.name}</span>}
+              </div>
+              <button className="linkbtn" onClick={() => dispatch({ type: 'REMOVE_EDGE', from: e.from, to: e.to })}>Remove link</button>
+            </div>
+          );
+        })}
+      </div>
+
+      {incoming.length > 0 && (
+        <div className="isect">
+          <SectionLabel>Reached from</SectionLabel>
+          <div className="chips">
+            {incoming.map((e, i) => <Chip key={i} color={color}>← {s.nodes[e.from]?.title}</Chip>)}
+          </div>
+        </div>
+      )}
+
       <div className="isect">
         <SectionLabel>Node image · optional</SectionLabel>
         <ImageUploader coll="nodes" entity={node} label="Node image" />
@@ -296,13 +406,57 @@ function NodePanel({ node }) {
         </select>
         <div className="hint">Linked nodes show the live record here instead.</div>
       </div>
+    </>
+  );
+}
+
+// ---- Fact record: a tracked real-world state (the "variable" of a live game) ----
+function FactPanel({ fact }) {
+  const s = useGame();
+  const dispatch = useDispatch();
+  const upd = (patch) => dispatch({ type: 'UPDATE_ENTITY', coll: 'facts', id: fact.id, patch });
+  const fk = FACT_KINDS[fact.kind] || { label: fact.kind, color: '#8B92A6' };
+  // Where this fact is used across the graph.
+  const setBy = Object.values(s.nodes).filter((n) => (n.sets || []).some((x) => x.factId === fact.id));
+  const gatedEdges = s.edges.filter((e) => e.factId === fact.id);
+  return (
+    <>
+      <InstanceBadge templateId={null} />
+      <div className="ihead">
+        <div className="ihrow"><span className="sq big" style={{ background: fk.color }}><PrimIcon icon={fk.icon} color="#fff" size={13} /></span><h3>{fact.name}</h3></div>
+        <div className="sub mono">{fact.id} · {fk.label} fact</div>
+      </div>
+      <TextField label="Fact name" value={fact.name} onCommit={(v) => upd({ name: v })} />
       <div className="isect">
-        <SectionLabel>Connections</SectionLabel>
+        <SectionLabel>Kind</SectionLabel>
+        <select className="field-input" value={fact.kind} onChange={(e) => upd({ kind: e.target.value })}>
+          {Object.values(FACT_KINDS).map((k) => <option key={k.id} value={k.id}>{k.label}</option>)}
+        </select>
+        <div className="hint">{fk.hint}</div>
+      </div>
+      <TextField label="What it means · how a GM checks it" textarea value={fact.detail} onCommit={(v) => upd({ detail: v })} />
+      {fact.kind === 'sensor' && (
+        <div className="isect">
+          <SectionLabel>Bound hardware sensor</SectionLabel>
+          <select className="field-input" value={fact.sensorId || ''} onChange={(e) => upd({ sensorId: e.target.value || null })}>
+            <option value="">— none —</option>
+            {Object.values(s.sensors).map((x) => <option key={x.id} value={x.id}>{x.id} — {x.kind}</option>)}
+          </select>
+          <div className="hint">A sensor-bound fact flips automatically when the hardware fires.</div>
+        </div>
+      )}
+      <div className="isect">
+        <SectionLabel>Set by</SectionLabel>
         <div className="chips">
-          {connections.map((e, i) => (
-            <Chip key={i} color={color}>{e.from === node.id ? `→ ${s.nodes[e.to]?.title}` : `← ${s.nodes[e.from]?.title}`}</Chip>
-          ))}
-          {connections.length === 0 && <span className="dim">none — drag from the node's ○ port on the canvas</span>}
+          {setBy.map((n) => <Chip key={n.id} color={ENTITY_COLORS[n.kind] || fk.color}>{n.title}</Chip>)}
+          {setBy.length === 0 && <span className="dim">no node records this yet</span>}
+        </div>
+      </div>
+      <div className="isect">
+        <SectionLabel>Gates {gatedEdges.length} connection{gatedEdges.length === 1 ? '' : 's'}</SectionLabel>
+        <div className="chips">
+          {gatedEdges.map((e, i) => <Chip key={i} color={fk.color}>{s.nodes[e.from]?.title} → {s.nodes[e.to]?.title}</Chip>)}
+          {gatedEdges.length === 0 && <span className="dim">not gating any branch yet</span>}
         </div>
       </div>
     </>
@@ -562,6 +716,7 @@ export default function Inspector({ selection, onSelect }) {
   let body = null;
   const { kind, id } = selection;
   if (kind === 'item' && s.items[id]) body = <ItemPanel item={s.items[id]} />;
+  else if (kind === 'fact' && s.facts?.[id]) body = <FactPanel fact={s.facts[id]} />;
   else if (kind === 'location' && s.locations[id]) body = <LocationPanel location={s.locations[id]} />;
   else if (kind === 'player' && s.players[id]) body = <PlayerPanel player={s.players[id]} />;
   else if (kind === 'lib-items' && lib.items[id]) body = <LibItemPanel template={lib.items[id]} />;
@@ -575,6 +730,10 @@ export default function Inspector({ selection, onSelect }) {
   else if (kind === 'node') {
     const r = resolveNode(s, lib, id);
     if (!r) body = null;
+    // Narrative-typed nodes always show the node editor (with their branch
+    // conditions and fact changes). Mechanical nodes linked to an item/location
+    // surface that live record instead.
+    else if (NARRATIVE_KINDS.includes(r.node.kind)) body = <NodePanel node={r.node} />;
     else if (r.item) body = <ItemPanel item={r.item} viaNode={r.node} />;
     else if (r.location) body = <LocationPanel location={r.location} viaNode={r.node} />;
     else body = <NodePanel node={r.node} />;

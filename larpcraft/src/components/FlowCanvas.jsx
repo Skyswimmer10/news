@@ -1,12 +1,16 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ENTITY_COLORS } from './bits.jsx';
+import { ENTITY_COLORS, PrimIcon } from './bits.jsx';
 
 // In-app node clipboard, shared across canvases (copy in a structure
 // template, paste on the game canvas, and vice versa).
 let nodeClipboard = null;
 
 export const NODE_W = 236;
-export const KIND_LABEL = { story: 'Story beat', location: 'Location', objective: 'Objective', enemy: 'Enemy encounter', mechanic: 'Mechanic', sensor: 'Sensor trigger' };
+export const KIND_LABEL = {
+  story: 'Story beat', location: 'Location', objective: 'Objective', enemy: 'Enemy encounter', mechanic: 'Mechanic', sensor: 'Sensor trigger',
+  // Narrative v2 typed nodes.
+  beat: 'Beat', reveal: 'Reveal', branch: 'Branch', fact: 'Fact change', converge: 'Convergence', timed: 'Timed event', recovery: 'Recovery',
+};
 const SWATCHES = ['#5CA8F5', '#43BF87', '#E0A23C', '#E86464', '#A87BF0', '#3EC6D6', '#E8D25C', '#F08CB4'];
 
 // Generic interactive node canvas, shared by the active game's quest editor
@@ -19,6 +23,10 @@ export default function FlowCanvas({
   nodes, edges, selId, colorOf,
   onSelect, onMove, onConnect, onRemoveEdge, onSetColor, onDropPalette,
   onPasteNode, onDeleteNode, onEditEdge, renderExtra,
+  // Optional presentation hooks (unused by the library structure editors):
+  //   iconOf(node) → icon name · teamOf(node) → {name,color} · dimNode(node) →
+  //   bool · edgeFact(edge) → {color,title} to show a fact dot on a connection.
+  iconOf, teamOf, dimNode, edgeFact,
 }) {
   const canvasRef = useRef(null);
   const dragRef = useRef(null);
@@ -128,11 +136,13 @@ export default function FlowCanvas({
           const a = outAnchor(from), b = inAnchor(to);
           const mx = (a.x + b.x) / 2;
           const color = e.color || ENTITY_COLORS[e.kindColor] || colorOf(from) || '#8B92A6';
+          const fact = edgeFact?.(e);
           return (
             <g key={idx}>
               <path d={`M ${a.x} ${a.y} C ${mx} ${a.y}, ${mx} ${b.y}, ${b.x} ${b.y}`} stroke={color} strokeWidth="2" fill="none" opacity=".8" />
-              <foreignObject x={mx - 80} y={(a.y + b.y) / 2 - 26} width="160" height="28">
+              <foreignObject x={mx - 90} y={(a.y + b.y) / 2 - 26} width="180" height="28">
                 <div className={`elab${e.label ? '' : ' empty'}`} style={{ borderColor: color, color }}>
+                  {fact && <span className="efact" style={{ background: fact.color }} title={fact.title} />}
                   <span className={onEditEdge ? 'editable' : ''}
                     title={onEditEdge ? 'Click to edit the connection label' : undefined}
                     onClick={onEditEdge ? () => {
@@ -157,10 +167,12 @@ export default function FlowCanvas({
 
       {list.map((n) => {
         const color = colorOf(n);
+        const icon = iconOf?.(n);
+        const team = teamOf?.(n);
         return (
           <div
             key={n.id} data-node={n.id} role="button" tabIndex={0}
-            className={`node${selId === n.id ? ' sel' : ''}${linkDrag && linkDrag.from !== n.id ? ' droppable' : ''}`}
+            className={`node${selId === n.id ? ' sel' : ''}${linkDrag && linkDrag.from !== n.id ? ' droppable' : ''}${dimNode?.(n) ? ' dim' : ''}`}
             style={{ left: n.x, top: n.y, width: NODE_W, borderTopColor: color }}
             onPointerDown={(e) => onNodeDown(e, n)}
             onPointerMove={onNodeMove}
@@ -170,9 +182,12 @@ export default function FlowCanvas({
             <div className="nh">
               {onSetColor ? (
                 <button className="icpick" style={{ background: color }} title="Change node color"
-                  onClick={(e) => { e.stopPropagation(); setPickerFor(pickerFor === n.id ? null : n.id); }} />
-              ) : <span className="icpick" style={{ background: color }} />}
-              <div><small style={{ color }}>{KIND_LABEL[n.kind] ?? n.kind}</small><b>{n.title}</b></div>
+                  onClick={(e) => { e.stopPropagation(); setPickerFor(pickerFor === n.id ? null : n.id); }}>
+                  {icon && <PrimIcon icon={icon} color="#fff" size={12} />}
+                </button>
+              ) : <span className="icpick" style={{ background: color }}>{icon && <PrimIcon icon={icon} color="#fff" size={12} />}</span>}
+              <div className="nhmeta"><small style={{ color }}>{KIND_LABEL[n.kind] ?? n.kind}</small><b>{n.title}</b></div>
+              {team && <span className="nteam" style={{ background: team.color }} title={`Lane: ${team.name}`}>{team.name}</span>}
             </div>
             <div className="nb">
               {n.image?.dataUrl && <img className="nimg" src={n.image.dataUrl} alt="" draggable={false} />}

@@ -47,6 +47,42 @@ export const GM_RULE_TABS = [
   { id: 'rationale', label: 'Rationale' },
 ];
 
+// ---------------------------------------------------------------------------
+// NARRATIVE v2 — a node-graph story model adapted for LIVE (not video) games.
+// The professional tools this is modelled on (articy:draft, Arcweave) evaluate
+// branch logic in code at runtime. A live game has no runtime engine: a human
+// referee, a physical prop, or a hardware sensor decides. So "variables" become
+// FACTS (real-world trackable states) and "conditions" become plain-language
+// gates a GM or sensor adjudicates.
+// ---------------------------------------------------------------------------
+
+// Typed narrative node palette. Each kind renders with its own colour + icon on
+// the canvas and offers type-specific fields in the inspector.
+export const NARR_NODE_TYPES = {
+  beat: { id: 'beat', label: 'Beat', color: '#5CA8F5', icon: 'flag', blurb: 'A scene — what happens at a place and time.' },
+  reveal: { id: 'reveal', label: 'Reveal', color: '#F08CB4', icon: 'zap', blurb: 'Deliver information: a clue, an NPC line, a discovered prop.' },
+  branch: { id: 'branch', label: 'Branch', color: '#E0A23C', icon: 'swap', blurb: 'A decision point. Each outgoing link carries a plain-language condition a GM or sensor decides.' },
+  fact: { id: 'fact', label: 'Fact change', color: '#3EC6D6', icon: 'cog', blurb: 'Records a real-world fact as now true — key held, door open, NPC hostile.' },
+  converge: { id: 'converge', label: 'Convergence', color: '#A87BF0', icon: 'pin', blurb: 'Where divergent paths rejoin — keeps the story resilient.' },
+  timed: { id: 'timed', label: 'Timed event', color: '#E8D25C', icon: 'clock', blurb: 'Fires at a clock time regardless of player action.' },
+  recovery: { id: 'recovery', label: 'Recovery', color: '#E86464', icon: 'cross', blurb: 'A soft-fail nudge that puts a stalled team back in play — never a dead end.' },
+};
+
+// Which node kinds belong to the STORY side (vs. the mechanical task side used
+// by the Weaver timeline). Legacy 'story' kept for older saves.
+export const NARRATIVE_KINDS = ['story', ...Object.keys(NARR_NODE_TYPES)];
+
+// FACTS registry: the live-game replacement for a variable system. A fact is a
+// real-world state the game tracks and a GM/sensor can check at a branch.
+export const FACT_KINDS = {
+  knowledge: { id: 'knowledge', label: 'Knowledge', color: '#5CA8F5', icon: 'flag', hint: 'Something a team has learned — a clue, a code, a name.' },
+  physical: { id: 'physical', label: 'Physical', color: '#E0A23C', icon: 'swap', hint: 'A real token / prop / door state — key held, gate open.' },
+  sensor: { id: 'sensor', label: 'Sensor', color: '#3EC6D6', icon: 'zap', hint: 'Bound to a hardware sensor in this game.' },
+  npc: { id: 'npc', label: 'NPC state', color: '#F08CB4', icon: 'alert', hint: 'An NPC’s disposition — allied, hostile, exposed.' },
+  progress: { id: 'progress', label: 'Progress', color: '#A87BF0', icon: 'pin', hint: 'A story milestone the game has reached.' },
+};
+export const FACT_BLANK = (id) => ({ id, name: 'New fact', kind: 'knowledge', detail: '', sensorId: null });
+
 // Blank factories for the Library's "+ New …" buttons and id prefixes.
 export const LIB_PREFIX = {
   items: 'LIB-ITM-', locations: 'LIB-LOC-', mechanics: 'LIB-MECH-N', sensors: 'LIB-SEN-N',
@@ -300,8 +336,21 @@ export function makeEmptyProject(name = 'Untitled game') {
     // adjustable opacity and placement ('app' whole workspace | 'content'
     // behind the main content area). File menu → Set game backdrop…
     meta: { name, prefix: 'GAME', createdAt: Date.now(), hero: { image: null, opacity: 0.25, placement: 'app' }, timeline: { startMin: 540, endMin: 1020 } },
-    items: {}, locations: {}, sensors: {}, mechanics: {}, nodes: {}, edges: [], alignments: [], storyTrack: {}, teams: {}, players: {},
+    items: {}, locations: {}, sensors: {}, mechanics: {}, facts: {}, nodes: {}, edges: [], alignments: [], storyTrack: {}, teams: {}, players: {},
   };
+}
+
+// Additive project migration: preserve the open game across schema bumps by
+// backfilling any collections/fields added in later revs (e.g. `facts`) instead
+// of discarding user work. Corrupt/empty saves fall back to a fresh demo.
+export function migrateProject(saved) {
+  if (!saved || typeof saved !== 'object' || !saved.meta || !saved.nodes) return makeProjectSeed();
+  const base = makeEmptyProject(saved.meta.name || 'Untitled game');
+  const merged = { ...saved };
+  for (const key of Object.keys(base)) {
+    if (merged[key] === undefined) merged[key] = base[key];
+  }
+  return merged;
 }
 
 // Demo game: Operation Chimera, built from the library templates above.
@@ -364,6 +413,16 @@ export function makeProjectSeed() {
       'CHM-C-009': { id: 'CHM-C-009', templateId: 'LIB-ITM-008', name: 'Medkit Prop', type: 'consumable', buildStatus: 'packed', availability: 'ready', description: 'Revive kit: bandage cards + ritual instructions.', propNotes: 'Surplus pouch, 12 bandage cards.', loreNotes: '', locationId: 'LOC-MED', mechanicIds: ['LIB-MECH-REVIVE'], sensorReqs: [], image: null, assignedTo: null },
     },
 
+    // FACTS: the real-world states this game tracks. Branch gates reference
+    // these in plain language; a GM or the bound sensor decides at runtime.
+    facts: {
+      'F-KEY': { id: 'F-KEY', name: 'Cipher-Key retrieved', kind: 'physical', detail: 'A team physically holds the brass Cipher-Key.', sensorId: 'RFID-07' },
+      'F-DECODE': { id: 'F-DECODE', name: 'Dataslate decoded', kind: 'knowledge', detail: 'A team solved the cipher and read the Chimera flight path.', sensorId: null },
+      'F-GATE': { id: 'F-GATE', name: 'Sector 8 gate open', kind: 'sensor', detail: 'Gate proximity loop reports the gate has opened.', sensorId: 'PRX-02' },
+      'F-ALARM': { id: 'F-ALARM', name: 'Alarm raised', kind: 'progress', detail: 'A failed breach tripped the warehouse alarm; patrols reroute.', sensorId: 'MOT-04' },
+      'F-TRAITOR': { id: 'F-TRAITOR', name: 'Contact exposed as double agent', kind: 'npc', detail: 'The trusted contact has been revealed as feeding the other faction.', sensorId: null },
+    },
+
     // Game mechanic INSTANCES: imported from the library, then micro-adjusted
     // for this specific game. Note the Server Room Door needs 4 switches here,
     // while its library blueprint (LIB-MECH-ACCESS) still defaults to 1.
@@ -372,25 +431,38 @@ export function makeProjectSeed() {
       'CHM-MECH-02': { id: 'CHM-MECH-02', templateId: 'LIB-MECH-DECRYPT', name: 'Dataslate decryption', summary: 'Cipher wheel on the comms bench; harder this game.', params: [{ key: 'hintAfter', label: 'Hint after tries', value: '5' }, { key: 'digits', label: 'Cipher digits', value: '6' }] },
     },
 
+    // NARRATIVE v2 graph: typed nodes, per-team lanes (teamId), fact-setting
+    // nodes (sets[]) and fact-gated branches (see edges). Nodes with a teamId
+    // belong to that team's lane; teamId:null is shared across all teams.
     nodes: {
-      'N-BRIEF': { id: 'N-BRIEF', kind: 'story', title: 'Briefing', x: 40, y: 90, body: 'Teams receive the crash-site dossier and a sealed radio frequency.', color: null, locationId: null, itemId: null, mechanicIds: [], sensorIds: [] },
-      'N-S7': { id: 'N-S7', kind: 'location', title: 'Sector 7 Warehouse', x: 380, y: 40, body: '2 patrols · marked safety zone', color: null, locationId: 'LOC-S7', itemId: null, mechanicIds: [], sensorIds: ['RFID-07', 'MOT-04'], startMin: 540, durationMin: 60 },
-      'N-KEY': { id: 'N-KEY', kind: 'objective', title: 'Retrieve Cipher-Key', x: 380, y: 300, body: 'Success unlocks Sector 8.', color: null, locationId: 'LOC-S7', itemId: 'CHM-A-004', mechanicIds: ['LIB-MECH-LOCK'], sensorIds: ['RFID-07'], startMin: 600, durationMin: 45 },
-      'N-PATROL': { id: 'N-PATROL', kind: 'enemy', title: 'Security Patrols', x: 720, y: 40, body: 'NPC crew: Mank +1 · Tier 2 · 7 min loop', color: null, locationId: 'LOC-S7', itemId: null, mechanicIds: [], sensorIds: [], startMin: 660, durationMin: 90 },
-      'N-DECRYPT': { id: 'N-DECRYPT', kind: 'mechanic', title: 'Decrypt the Dataslate', x: 720, y: 300, body: 'Fail ×3 → alarm reroutes patrols.', color: null, locationId: 'LOC-COMMS', itemId: 'CHM-A-007', mechanicIds: ['LIB-MECH-DECRYPT'], sensorIds: ['BTN-11', 'NFC-03'], startMin: 780, durationMin: 60 },
-      'N-GATE': { id: 'N-GATE', kind: 'sensor', title: 'Sector 8 gate opens', x: 1060, y: 170, body: 'Fires quest.key_obtained to Live Ops.', color: null, locationId: 'LOC-S8', itemId: 'CHM-A-002', mechanicIds: ['LIB-MECH-ACCESS'], sensorIds: ['PRX-02'], startMin: 900, durationMin: 30 },
-      'N-TWIST': { id: 'N-TWIST', kind: 'story', title: 'False-flag intercept', x: 720, y: 560, body: 'A radio intercept names one player team as "the decoys".', color: null, locationId: null, itemId: null, mechanicIds: [], sensorIds: [] },
-      'N-END': { id: 'N-END', kind: 'story', title: 'Extraction', x: 1060, y: 460, body: 'Teams call in the beacon and exfiltrate before the timer.', color: null, locationId: null, itemId: null, mechanicIds: [], sensorIds: [] },
+      'N-BRIEF': { id: 'N-BRIEF', kind: 'beat', title: 'Briefing', x: 40, y: 90, body: 'Teams receive the crash-site dossier and a sealed radio frequency.', color: null, teamId: null, sets: [], locationId: null, itemId: null, mechanicIds: [], sensorIds: [] },
+      'N-S7': { id: 'N-S7', kind: 'location', title: 'Sector 7 Warehouse', x: 380, y: 40, body: '2 patrols · marked safety zone', color: null, teamId: null, sets: [], locationId: 'LOC-S7', itemId: null, mechanicIds: [], sensorIds: ['RFID-07', 'MOT-04'], startMin: 540, durationMin: 60 },
+      'N-KEY': { id: 'N-KEY', kind: 'objective', title: 'Retrieve Cipher-Key', x: 380, y: 300, body: 'Success unlocks Sector 8.', color: null, teamId: 'T-RAVEN', sets: [{ factId: 'F-KEY', to: 'set' }], locationId: 'LOC-S7', itemId: 'CHM-A-004', mechanicIds: ['LIB-MECH-LOCK'], sensorIds: ['RFID-07'], startMin: 600, durationMin: 45 },
+      'N-CHOICE': { id: 'N-CHOICE', kind: 'branch', title: 'Breach or bypass?', x: 720, y: 170, body: 'Force the locker corridor (risk the alarm) or take the slow maintenance bypass.', color: null, teamId: 'T-RAVEN', sets: [], locationId: 'LOC-S7', itemId: null, mechanicIds: [], sensorIds: [] },
+      'N-PATROL': { id: 'N-PATROL', kind: 'enemy', title: 'Security Patrols', x: 1060, y: 40, body: 'NPC crew: Mank +1 · Tier 2 · 7 min loop', color: null, teamId: null, sets: [], locationId: 'LOC-S7', itemId: null, mechanicIds: [], sensorIds: [], startMin: 660, durationMin: 90 },
+      'N-DECRYPT': { id: 'N-DECRYPT', kind: 'mechanic', title: 'Decrypt the Dataslate', x: 720, y: 360, body: 'Fail ×3 → alarm reroutes patrols.', color: null, teamId: 'T-WOLF', sets: [{ factId: 'F-DECODE', to: 'set' }], locationId: 'LOC-COMMS', itemId: 'CHM-A-007', mechanicIds: ['LIB-MECH-DECRYPT'], sensorIds: ['BTN-11', 'NFC-03'], startMin: 780, durationMin: 60 },
+      'N-RECOV': { id: 'N-RECOV', kind: 'recovery', title: 'Stuck on the cipher?', x: 720, y: 600, body: 'If a team stalls 15+ min at the bench, Quartermaster Mank offers one partial digit — keeps momentum, never a dead end.', color: null, teamId: 'T-WOLF', sets: [], locationId: 'LOC-COMMS', itemId: null, mechanicIds: [], sensorIds: [] },
+      'N-GATE': { id: 'N-GATE', kind: 'sensor', title: 'Sector 8 gate opens', x: 1060, y: 340, body: 'Fires quest.key_obtained to Live Ops.', color: null, teamId: null, sets: [{ factId: 'F-GATE', to: 'set' }], locationId: 'LOC-S8', itemId: 'CHM-A-002', mechanicIds: ['LIB-MECH-ACCESS'], sensorIds: ['PRX-02'], startMin: 900, durationMin: 30 },
+      'N-TWIST': { id: 'N-TWIST', kind: 'timed', title: 'False-flag intercept', x: 1060, y: 560, body: 'A radio intercept names one player team as "the decoys". Broadcast on comms at the act break — fires whether or not players are ready.', color: null, teamId: null, sets: [{ factId: 'F-TRAITOR', to: 'set' }], startMin: 840, locationId: null, itemId: null, mechanicIds: [], sensorIds: [] },
+      'N-REVEAL': { id: 'N-REVEAL', kind: 'reveal', title: 'Double-agent tell', x: 1400, y: 340, body: 'Players notice the contact’s badge doesn’t match the manifest. Plant this before the twist lands.', color: null, teamId: null, sets: [], locationId: null, itemId: null, mechanicIds: [], sensorIds: [] },
+      'N-END': { id: 'N-END', kind: 'beat', title: 'Extraction', x: 1400, y: 560, body: 'Teams call in the beacon and exfiltrate before the timer.', color: null, teamId: null, sets: [], locationId: null, itemId: null, mechanicIds: [], sensorIds: [] },
     },
+    // Edges: `label` is the plain-language condition (a GM reads it). A branch
+    // gate may also carry factId + expect ('set'|'unset') so it references a
+    // tracked fact directly — a coloured fact dot then shows on the connection.
     edges: [
       { from: 'N-BRIEF', to: 'N-S7', label: 'game start', kindColor: 'story' },
       { from: 'N-S7', to: 'N-KEY', label: 'locker corridor', kindColor: 'location' },
-      { from: 'N-S7', to: 'N-PATROL', label: 'ON alarm raised', kindColor: 'enemy' },
-      { from: 'N-KEY', to: 'N-DECRYPT', label: 'IF key obtained', kindColor: 'objective' },
-      { from: 'N-KEY', to: 'N-GATE', label: 'THEN unlock Sector 8', kindColor: 'sensor' },
-      { from: 'N-DECRYPT', to: 'N-GATE', label: 'REQUIRES decode', kindColor: 'mechanic' },
-      { from: 'N-DECRYPT', to: 'N-TWIST', label: 'ON decode', kindColor: 'mechanic' },
-      { from: 'N-GATE', to: 'N-END', label: 'THEN finale', kindColor: 'sensor' },
+      { from: 'N-KEY', to: 'N-CHOICE', label: 'breach attempt', kindColor: 'objective' },
+      { from: 'N-CHOICE', to: 'N-PATROL', label: 'IF alarm raised', kindColor: 'enemy', factId: 'F-ALARM', expect: 'set' },
+      { from: 'N-CHOICE', to: 'N-DECRYPT', label: 'ELSE stayed quiet', kindColor: 'mechanic' },
+      { from: 'N-KEY', to: 'N-GATE', label: 'IF Cipher-Key retrieved', kindColor: 'sensor', factId: 'F-KEY', expect: 'set' },
+      { from: 'N-DECRYPT', to: 'N-GATE', label: 'REQUIRES decode', kindColor: 'mechanic', factId: 'F-DECODE', expect: 'set' },
+      { from: 'N-DECRYPT', to: 'N-RECOV', label: 'IF stalled 15 min', kindColor: 'mechanic' },
+      { from: 'N-RECOV', to: 'N-DECRYPT', label: 'back to it', kindColor: 'mechanic' },
+      { from: 'N-GATE', to: 'N-TWIST', label: 'act break', kindColor: 'sensor' },
+      { from: 'N-TWIST', to: 'N-REVEAL', label: 'suspicion seeded', kindColor: 'story', factId: 'F-TRAITOR', expect: 'set' },
+      { from: 'N-REVEAL', to: 'N-END', label: 'the turn', kindColor: 'story' },
     ],
     // Weaver alignments: story beats ↔ physical tasks they are tied to.
     alignments: [
@@ -399,7 +471,10 @@ export function makeProjectSeed() {
       { story: 'N-END', task: 'N-GATE' },
     ],
     // Weaver left-panel layout for the macro story track (nodeId → {x,y}).
-    storyTrack: { 'N-BRIEF': { x: 60, y: 40 }, 'N-TWIST': { x: 60, y: 220 }, 'N-END': { x: 60, y: 400 } },
+    storyTrack: {
+      'N-BRIEF': { x: 60, y: 40 }, 'N-CHOICE': { x: 60, y: 200 }, 'N-REVEAL': { x: 60, y: 360 },
+      'N-TWIST': { x: 340, y: 40 }, 'N-RECOV': { x: 340, y: 200 }, 'N-END': { x: 340, y: 360 },
+    },
 
     teams: {
       'T-RAVEN': { id: 'T-RAVEN', name: 'Team Raven', color: '#5CA8F5', focus: 'Infiltration specialists · returning crew' },

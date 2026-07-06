@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useReducer, useState } from 'react';
 import { reducer } from './reducer.js';
-import { makeLibrarySeed, makeProjectSeed, makeEmptyProject, migrateLibrary, LIB_REV, SEED_REV } from '../data/seed.js';
+import { makeLibrarySeed, makeProjectSeed, makeEmptyProject, migrateLibrary, migrateProject, LIB_REV, SEED_REV } from '../data/seed.js';
 import { loadKey, saveKeyDebounced, clearKey } from './storage.js';
 
 // Two distinct stores:
@@ -28,7 +28,9 @@ export function StoreProvider({ children }) {
       // Library is migrated additively: newer schema revs backfill missing
       // collections (e.g. gmRules) instead of discarding the saved library.
       libDispatch({ type: 'RESET', seed: migrateLibrary(savedLib) });
-      projDispatch({ type: 'RESET', seed: savedProj && savedProj.rev === SEED_REV ? savedProj : makeProjectSeed() });
+      // Project is migrated additively (backfills `facts` etc.) so an open game
+      // survives schema bumps instead of being reset.
+      projDispatch({ type: 'RESET', seed: migrateProject(savedProj) });
       setBooted(true);
     });
     return () => { alive = false; };

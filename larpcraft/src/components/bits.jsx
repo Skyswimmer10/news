@@ -7,6 +7,8 @@ export const ENTITY_COLORS = {
   objective: '#E0A23C', item: '#E0A23C', artifact: '#E0A23C', gadget: '#3EC6D6', consumable: '#E88F8F',
   mechanic: '#A87BF0',
   sensor: '#3EC6D6',
+  // Narrative v2 typed nodes.
+  beat: '#5CA8F5', reveal: '#F08CB4', branch: '#E0A23C', fact: '#3EC6D6', converge: '#A87BF0', timed: '#E8D25C', recovery: '#E86464',
 };
 
 export const AVAILABILITY = {
