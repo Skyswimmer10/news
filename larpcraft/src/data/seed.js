@@ -11,8 +11,8 @@
 //      game-state fields (build status, availability, placement, assignment,
 //      sensor battery) · edits affect only this game
 
-export const LIB_REV = 8;
-export const SEED_REV = 6;
+export const LIB_REV = 9;
+export const SEED_REV = 7;
 
 // Default item types — seeds the editable lib.itemTypes collection.
 export const DEFAULT_ITEM_TYPES = {
@@ -69,8 +69,10 @@ export const NARR_NODE_TYPES = {
 };
 
 // Which node kinds belong to the STORY side (vs. the mechanical task side used
-// by the Weaver timeline). Legacy 'story' kept for older saves.
-export const NARRATIVE_KINDS = ['story', ...Object.keys(NARR_NODE_TYPES)];
+// by the Weaver timeline). Includes legacy typed kinds (story/beat/…) so older
+// saves keep working, plus the Narrative Weaver base kinds and concept nodes.
+export const NARRATIVE_KINDS = ['story', ...Object.keys(NARR_NODE_TYPES),
+  'event', 'character', 'storyLocation', 'item', 'quest', 'concept'];
 
 // FACTS registry: the live-game replacement for a variable system. A fact is a
 // real-world state the game tracks and a GM/sensor can check at a branch.
@@ -82,6 +84,109 @@ export const FACT_KINDS = {
   progress: { id: 'progress', label: 'Progress', color: '#A87BF0', icon: 'pin', hint: 'A story milestone the game has reached.' },
 };
 export const FACT_BLANK = (id) => ({ id, name: 'New fact', kind: 'knowledge', detail: '', sensorId: null });
+
+// ---------------------------------------------------------------------------
+// NARRATIVE WEAVER — the locked node architecture for the narrative layer.
+// Everything is PRE-AUTHORED: designers build all paths up front; play only
+// selects among them. Three node classes, visually distinct:
+//   BASE NODES        — minimum independent story building blocks.
+//   ADDITIONAL NODES  — Pip-Decks-style strategic containers ("concepts"),
+//                       collapsed by default, Expand / Edit, nest ≤ 3 deep.
+//   SUBNODES          — precision enrichments; may float unattached on the
+//                       canvas until linked; one-click detach on the line.
+// The narrative layer never contains mechanic logic — nodes carry only a
+// "Link to Mechanic Node" reference into the (separate) mechanic layer.
+// ---------------------------------------------------------------------------
+
+export const BASE_NODE_TYPES = {
+  event: { id: 'event', label: 'Event', color: '#5CA8F5', icon: 'zap', blurb: 'Something that happens — a scene, an encounter, a moment.' },
+  character: { id: 'character', label: 'Character', color: '#E0A23C', icon: 'user', blurb: 'A person in the story — NPC, actor role, or figure.' },
+  storyLocation: { id: 'storyLocation', label: 'Story Location', color: '#43BF87', icon: 'pin', blurb: 'A place as the story sees it (link it to a real venue record).' },
+  item: { id: 'item', label: 'Item', color: '#3EC6D6', icon: 'box', blurb: 'An object that matters to the story.' },
+  quest: { id: 'quest', label: 'Quest', color: '#A87BF0', icon: 'target', blurb: 'A goal players pursue across one or more events.' },
+};
+export const BASE_KINDS = Object.keys(BASE_NODE_TYPES);
+
+// Additional Nodes: all five behave identically (collapsed card → Expand shows
+// the grouped internal map on the canvas; Edit opens a dedicated viewport).
+export const ADDITIONAL_NODE_TYPES = {
+  storyConcept: { id: 'storyConcept', label: 'Story Concept', color: '#E8D25C', icon: 'book' },
+  characterConcept: { id: 'characterConcept', label: 'Character Concept', color: '#E5B94E', icon: 'user' },
+  functionConcept: { id: 'functionConcept', label: 'Function', color: '#D9A23C', icon: 'cog' },
+  structureConcept: { id: 'structureConcept', label: 'Structure Concept', color: '#C98F2E', icon: 'layers' },
+  styleConcept: { id: 'styleConcept', label: 'Style Concept', color: '#E8C97E', icon: 'heart' },
+};
+
+// Graduated outcomes replace binary success/failure everywhere.
+export const GRADUATED_OUTCOMES = [
+  { id: 'yes-and', label: 'Yes, and…' },
+  { id: 'yes', label: 'Yes' },
+  { id: 'yes-but', label: 'Yes, but…' },
+  { id: 'no-but', label: 'No, but…' },
+  { id: 'no', label: 'No' },
+  { id: 'no-and', label: 'No, and…' },
+];
+
+export const LOCATION_ARCHETYPES = [
+  'Dangerous Place', 'Place to Get Lost In', 'Good Place to Defend', 'Transient Location',
+  'Place of Power', 'Safe Haven', 'Contested Ground', 'Forgotten Place',
+];
+
+// Subnodes: rose/magenta family, pill-ish cards, smaller than base nodes.
+//   attachesTo — node kinds a subnode may parent to ('*' = any node)
+//   childOf    — subnode kinds (or 'branch') this child-only subnode attaches to
+export const SUBNODE_TYPES = {
+  outcomeBranches: { id: 'outcomeBranches', label: 'Outcome Branches', color: '#F08CB4', icon: 'swap', attachesTo: ['event', 'quest'], blurb: 'The branching engine: 2–5 pre-authored outcome paths.' },
+  relChange: { id: 'relChange', label: 'Relationship / Status Change', color: '#E86AA0', icon: 'heart', attachesTo: ['*'], blurb: 'Loyalty, rivalry, reputation, faction standing — and what it triggers.' },
+  internalState: { id: 'internalState', label: 'Internal State', color: '#C77BE8', icon: 'alert', attachesTo: ['*'], blurb: 'A character’s emotional or physical condition, as a path trigger.' },
+  locationArchetype: { id: 'locationArchetype', label: 'Location Archetype', color: '#E88FD2', icon: 'pin', attachesTo: ['storyLocation'], blurb: 'Gives a location personality that flavors attached events and quests.' },
+  narrativeResponse: { id: 'narrativeResponse', label: 'Narrative Response', color: '#F0A8C8', icon: 'book', childOf: ['relChange', 'internalState', 'branch'], blurb: 'Rich-text story consequence.' },
+  emotionalTone: { id: 'emotionalTone', label: 'Emotional Tone', color: '#F5C2DC', icon: 'zap', childOf: ['relChange', 'internalState', 'branch'], blurb: 'Light flavor tags: Cold Fury, Quiet Hope, Lingering Distrust…' },
+};
+
+// Fresh subnode factory. Every subnode shares the common shell (position,
+// parentRef, notes/keywords, history) plus kind-specific fields.
+export const SUBNODE_BLANK = (id, kind) => {
+  const common = { id, kind, title: SUBNODE_TYPES[kind]?.label ?? kind, x: 80, y: 80, parentRef: null, notes: '', keywords: [], history: [] };
+  switch (kind) {
+    case 'outcomeBranches':
+      return { ...common, mode: 'choice', selectionType: 'single', branches: [
+        { label: 'Branch A', outcome: '', mechanicId: null },
+        { label: 'Branch B', outcome: '', mechanicId: null },
+      ] };
+    case 'relChange':
+      return { ...common, relType: '', targets: '', direction: 'yes', intensity: '', trigger: '', effects: '', mechanicId: null };
+    case 'internalState':
+      return { ...common, stateType: '', level: '', trigger: '', effects: '', mechanicId: null };
+    case 'locationArchetype':
+      return { ...common, archetype: LOCATION_ARCHETYPES[0], influence: '' };
+    case 'narrativeResponse':
+      return { ...common, text: '' };
+    case 'emotionalTone':
+      return { ...common, tags: [] };
+    default:
+      return common;
+  }
+};
+
+// The classic "Dragon & the City" questions. The library template always keeps
+// this name; per-game substitutions (dragon → debt, city → home …) are stored
+// only on the game instance / event node as conceptAnswers.
+export const DRAGON_QUESTIONS = [
+  { key: 'dragon', label: 'Who or what is the Dragon — the looming threat?' },
+  { key: 'city', label: 'What is the City — the thing worth protecting?' },
+  { key: 'wants', label: 'What does the Dragon want, and why now?' },
+  { key: 'weakness', label: 'What is the Dragon’s weakness — or its price?' },
+  { key: 'defenders', label: 'Who stands for the City, and what must they give up?' },
+  { key: 'stakes', label: 'What happens to the City if the Dragon wins?' },
+];
+
+export const HERO_GUIDE_QUESTIONS = [
+  { key: 'hero', label: 'Who is the Hero — whose story is this?' },
+  { key: 'guide', label: 'Who is the Guide, and why do they help?' },
+  { key: 'gift', label: 'What gift, lesson or tool does the Guide give?' },
+  { key: 'cost', label: 'What does the Guide withhold — or what does their help cost?' },
+];
 
 // ---------------------------------------------------------------------------
 // TASKS — a hierarchical node system. The surface graph tracks tasks (linear or
@@ -102,7 +207,7 @@ export const TASK_DETAIL_KINDS = Object.keys(TASK_DETAIL_TYPES);
 export const LIB_PREFIX = {
   items: 'LIB-ITM-', locations: 'LIB-LOC-', mechanics: 'LIB-MECH-N', sensors: 'LIB-SEN-N',
   narrative: 'LIB-NAR-', mechPrimitives: 'LIB-MPRIM-', stories: 'LIB-STORY-N',
-  mechStructures: 'LIB-MSTRUCT-N', gmRules: 'LIB-GMR-',
+  mechStructures: 'LIB-MSTRUCT-N', gmRules: 'LIB-GMR-', concepts: 'LIB-CPT-N',
 };
 export const LIB_BLANK = {
   items: (id) => ({ id, name: 'New item template', type: 'gadget', description: '', propNotes: '', loreNotes: '', mechanicIds: [], sensorReqs: [], image: null }),
@@ -117,6 +222,9 @@ export const LIB_BLANK = {
   stories: (id) => ({ id, name: 'New structure', description: '', estMinutes: 15, nodes: {}, edges: [] }),
   mechStructures: (id) => ({ id, name: 'New mechanic structure', description: '', estMinutes: 10, nodes: {}, edges: [] }),
   gmRules: (id) => ({ id, title: 'New game master rule', principle: '', implementation: '', rationale: '', aiRule: '' }),
+  // Additional Node ("concept") template: starts completely empty — the
+  // designer builds inside it, renames it, and it becomes reusable.
+  concepts: (id) => ({ id, category: 'storyConcept', name: 'New concept', description: '', premade: false, questions: [], example: {}, nodes: {}, edges: [] }),
 };
 
 // Migration: preserve user-authored library data across schema bumps.
@@ -341,6 +449,61 @@ export function makeLibrarySeed() {
         ],
       },
     },
+
+    // ADDITIONAL NODE TEMPLATES ("concepts"): Pip-Decks-style containers. The
+    // two premades ship filled; "Create new …" versions start completely empty.
+    // The library template always keeps its canonical name — substitutions
+    // (dragon → debt, city → home …) live only inside a specific game.
+    concepts: {
+      'LIB-CPT-DRAGON': {
+        id: 'LIB-CPT-DRAGON', category: 'storyConcept', name: 'Dragon & the City', premade: true,
+        description: 'The classic threat-versus-home frame: name the Dragon, name the City, and every event gains stakes. Swap in your own dragon (a debt, a rival crew, a storm) per game.',
+        questions: DRAGON_QUESTIONS,
+        example: {
+          dragon: 'The creditor syndicate calling in the district’s debts.',
+          city: 'The riverside market street where every player faction trades.',
+          wants: 'The deeds to the street — tonight, before the festival crowd arrives.',
+          weakness: 'Its enforcers won’t act in front of witnesses.',
+          defenders: 'The stallholders’ council; they must give up their secret ledger.',
+          stakes: 'The market is bought out and the community scattered.',
+        },
+        nodes: {
+          S1: { id: 'S1', kind: 'character', title: 'The Dragon', x: 40, y: 60, body: 'The looming threat. Cast it per game: creditor, rival, storm, plague.', color: null },
+          S2: { id: 'S2', kind: 'storyLocation', title: 'The City', x: 40, y: 260, body: 'What is worth protecting — a place, a community, a way of life.', color: null },
+          S3: { id: 'S3', kind: 'event', title: 'First Tribute', x: 340, y: 160, body: 'The Dragon takes something small. The defenders feel the shape of the threat.', color: null },
+          S4: { id: 'S4', kind: 'quest', title: 'Find the Weakness', x: 640, y: 60, body: 'Players hunt the Dragon’s price or blind spot.', color: null },
+          S5: { id: 'S5', kind: 'event', title: 'The Confrontation', x: 640, y: 260, body: 'The City stands or falls. Use Outcome Branches, never pass/fail.', color: null },
+        },
+        edges: [
+          { from: 'S1', to: 'S3', label: 'threatens', color: null },
+          { from: 'S2', to: 'S3', label: 'suffers', color: null },
+          { from: 'S3', to: 'S4', label: 'provokes', color: null },
+          { from: 'S4', to: 'S5', label: 'armed with truth', color: null },
+        ],
+      },
+      'LIB-CPT-HERO': {
+        id: 'LIB-CPT-HERO', category: 'characterConcept', name: 'Hero & Guide', premade: true,
+        description: 'A protagonist paired with a mentor figure who gives a gift — at a cost. Bind a player (or team) to the Hero role and an NPC actor to the Guide.',
+        questions: HERO_GUIDE_QUESTIONS,
+        example: {
+          hero: 'The newest courier on the crew — the players’ own team.',
+          guide: 'Quartermaster Mank, who has seen this dragon before.',
+          gift: 'The old route map through the flooded tunnels.',
+          cost: 'He never says what happened to the last crew he gave it to.',
+        },
+        nodes: {
+          S1: { id: 'S1', kind: 'character', title: 'The Hero', x: 40, y: 60, body: 'Whose story is this? Bind to a player team.', color: null },
+          S2: { id: 'S2', kind: 'character', title: 'The Guide', x: 40, y: 260, body: 'The mentor. Cast an NPC actor; author intent + key lines, not scripts.', color: null },
+          S3: { id: 'S3', kind: 'event', title: 'The Gift', x: 340, y: 160, body: 'The Guide hands over the tool, lesson or map — and names no price.', color: null },
+          S4: { id: 'S4', kind: 'event', title: 'The Price Revealed', x: 640, y: 160, body: 'What the help really cost. Attach a Relationship / Status Change.', color: null },
+        },
+        edges: [
+          { from: 'S2', to: 'S3', label: 'offers', color: null },
+          { from: 'S1', to: 'S3', label: 'accepts', color: null },
+          { from: 'S3', to: 'S4', label: 'later', color: null },
+        ],
+      },
+    },
   };
 }
 
@@ -352,6 +515,7 @@ export function makeEmptyProject(name = 'Untitled game') {
     // behind the main content area). File menu → Set game backdrop…
     meta: { name, prefix: 'GAME', createdAt: Date.now(), hero: { image: null, opacity: 0.25, placement: 'app' }, timeline: { startMin: 540, endMin: 1020 } },
     items: {}, locations: {}, sensors: {}, mechanics: {}, facts: {}, nodes: {}, edges: [],
+    subnodes: {}, frames: {},
     taskNodes: {}, taskEdges: [], alignments: [], storyTrack: {}, teams: {}, players: {},
   };
 }
@@ -447,68 +611,135 @@ export function makeProjectSeed() {
       'CHM-MECH-02': { id: 'CHM-MECH-02', templateId: 'LIB-MECH-DECRYPT', name: 'Dataslate decryption', summary: 'Cipher wheel on the comms bench; harder this game.', params: [{ key: 'hintAfter', label: 'Hint after tries', value: '5' }, { key: 'digits', label: 'Cipher digits', value: '6' }] },
     },
 
-    // NARRATIVE v2 graph: typed nodes, per-team lanes (teamId), fact-setting
-    // nodes (sets[]) and fact-gated branches (see edges). Nodes with a teamId
-    // belong to that team's lane; teamId:null is shared across all teams.
+    // NARRATIVE WEAVER graph: Base Nodes (event / character / storyLocation /
+    // item / quest), a collapsed Additional Node (concept), per-team lanes
+    // (teamId), fact-setting nodes (sets[]) and fact-gated edges. Subnodes
+    // enrich these nodes from the separate `subnodes` collection.
     nodes: {
       'N-BRIEF': {
-        id: 'N-BRIEF', kind: 'beat', title: 'Briefing', x: 40, y: 90, body: 'Teams receive the crash-site dossier and a sealed radio frequency.', color: null, teamId: null, sets: [], locationId: null, itemId: null, mechanicIds: [], sensorIds: [],
-        // Double-click this node on the canvas to open its detail graph.
+        id: 'N-BRIEF', kind: 'event', title: 'Briefing', x: 40, y: 90, body: 'Teams receive the crash-site dossier and a sealed radio frequency.', color: null, teamId: null, sets: [], locationId: null, itemId: null, mechanicIds: [], sensorIds: [],
+        // Double-click / Edit opens this node's internal detail graph.
         sub: {
           nodes: {
-            D1: { id: 'D1', kind: 'placement', title: 'Muster point', x: 40, y: 60, body: 'All teams gather at the loading dock, out-of-game, before the clock starts.', color: null },
-            D2: { id: 'D2', kind: 'prop', title: 'Dossier + sealed frequency', x: 340, y: 60, body: 'One printed dossier per team; radio frequency in a sealed envelope opened on the GM cue.', color: null },
-            D3: { id: 'D3', kind: 'effect', title: 'Cold-open read', x: 640, y: 60, body: 'GM reads the cold-open aloud; house lights drop to work-lights on the last line.', color: null },
+            D1: { id: 'D1', kind: 'event', title: 'Muster point', x: 40, y: 60, body: 'All teams gather at the loading dock, out-of-game, before the clock starts.', color: null },
+            D2: { id: 'D2', kind: 'item', title: 'Dossier + sealed frequency', x: 340, y: 60, body: 'One printed dossier per team; radio frequency in a sealed envelope opened on the GM cue.', color: null },
+            D3: { id: 'D3', kind: 'event', title: 'Cold-open read', x: 640, y: 60, body: 'GM reads the cold-open aloud; house lights drop to work-lights on the last line.', color: null },
           },
           edges: [{ from: 'D1', to: 'D2', label: 'hand out', color: null }, { from: 'D2', to: 'D3', label: 'then', color: null }],
         },
       },
-      'N-S7': { id: 'N-S7', kind: 'location', title: 'Sector 7 Warehouse', x: 380, y: 40, body: '2 patrols · marked safety zone', color: null, teamId: null, sets: [], locationId: 'LOC-S7', itemId: null, mechanicIds: [], sensorIds: ['RFID-07', 'MOT-04'], startMin: 540, durationMin: 60 },
-      'N-KEY': { id: 'N-KEY', kind: 'objective', title: 'Retrieve Cipher-Key', x: 380, y: 300, body: 'Success unlocks Sector 8.', color: null, teamId: 'T-RAVEN', sets: [{ factId: 'F-KEY', to: 'set' }], locationId: 'LOC-S7', itemId: 'CHM-A-004', mechanicIds: ['LIB-MECH-LOCK'], sensorIds: ['RFID-07'], startMin: 600, durationMin: 45 },
-      'N-CHOICE': { id: 'N-CHOICE', kind: 'branch', title: 'Breach or bypass?', x: 720, y: 170, body: 'Force the locker corridor (risk the alarm) or take the slow maintenance bypass.', color: null, teamId: 'T-RAVEN', sets: [], locationId: 'LOC-S7', itemId: null, mechanicIds: [], sensorIds: [] },
-      'N-PATROL': { id: 'N-PATROL', kind: 'enemy', title: 'Security Patrols', x: 1060, y: 40, body: 'NPC crew: Mank +1 · Tier 2 · 7 min loop', color: null, teamId: null, sets: [], locationId: 'LOC-S7', itemId: null, mechanicIds: [], sensorIds: [], startMin: 660, durationMin: 90 },
-      'N-DECRYPT': { id: 'N-DECRYPT', kind: 'mechanic', title: 'Decrypt the Dataslate', x: 720, y: 360, body: 'Fail ×3 → alarm reroutes patrols.', color: null, teamId: 'T-WOLF', sets: [{ factId: 'F-DECODE', to: 'set' }], locationId: 'LOC-COMMS', itemId: 'CHM-A-007', mechanicIds: ['LIB-MECH-DECRYPT'], sensorIds: ['BTN-11', 'NFC-03'], startMin: 780, durationMin: 60 },
-      'N-RECOV': { id: 'N-RECOV', kind: 'recovery', title: 'Stuck on the cipher?', x: 720, y: 600, body: 'If a team stalls 15+ min at the bench, Quartermaster Mank offers one partial digit — keeps momentum, never a dead end.', color: null, teamId: 'T-WOLF', sets: [], locationId: 'LOC-COMMS', itemId: null, mechanicIds: [], sensorIds: [] },
-      'N-GATE': { id: 'N-GATE', kind: 'sensor', title: 'Sector 8 gate opens', x: 1060, y: 340, body: 'Fires quest.key_obtained to Live Ops.', color: null, teamId: null, sets: [{ factId: 'F-GATE', to: 'set' }], locationId: 'LOC-S8', itemId: 'CHM-A-002', mechanicIds: ['LIB-MECH-ACCESS'], sensorIds: ['PRX-02'], startMin: 900, durationMin: 30 },
-      'N-TWIST': { id: 'N-TWIST', kind: 'timed', title: 'False-flag intercept', x: 1060, y: 560, body: 'A radio intercept names one player team as "the decoys". Broadcast on comms at the act break — fires whether or not players are ready.', color: null, teamId: null, sets: [{ factId: 'F-TRAITOR', to: 'set' }], startMin: 840, locationId: null, itemId: null, mechanicIds: [], sensorIds: [] },
-      'N-REVEAL': { id: 'N-REVEAL', kind: 'reveal', title: 'Double-agent tell', x: 1400, y: 340, body: 'Players notice the contact’s badge doesn’t match the manifest. Plant this before the twist lands.', color: null, teamId: null, sets: [], locationId: null, itemId: null, mechanicIds: [], sensorIds: [] },
-      'N-END': { id: 'N-END', kind: 'beat', title: 'Extraction', x: 1400, y: 560, body: 'Teams call in the beacon and exfiltrate before the timer.', color: null, teamId: null, sets: [], locationId: null, itemId: null, mechanicIds: [], sensorIds: [] },
+      'N-S7': { id: 'N-S7', kind: 'storyLocation', title: 'Sector 7 Warehouse', x: 380, y: 40, body: '2 patrols · marked safety zone', color: null, teamId: null, sets: [], locationId: 'LOC-S7', itemId: null, mechanicIds: [], sensorIds: ['RFID-07', 'MOT-04'] },
+      'N-KEY': { id: 'N-KEY', kind: 'quest', title: 'Retrieve Cipher-Key', x: 380, y: 300, body: 'Success unlocks Sector 8.', color: null, teamId: 'T-RAVEN', sets: [{ factId: 'F-KEY', to: 'set' }], locationId: 'LOC-S7', itemId: 'CHM-A-004', mechanicIds: ['LIB-MECH-LOCK'], sensorIds: ['RFID-07'] },
+      'N-PATROL': { id: 'N-PATROL', kind: 'character', title: 'Security Patrols', x: 1060, y: 40, body: 'NPC crew: Mank +1 · Tier 2 · 7 min loop', color: null, teamId: null, sets: [], locationId: 'LOC-S7', itemId: null, mechanicIds: [], sensorIds: [] },
+      'N-DECRYPT': { id: 'N-DECRYPT', kind: 'quest', title: 'Decrypt the Dataslate', x: 720, y: 360, body: 'Solve the cipher at the comms bench.', color: null, teamId: 'T-WOLF', sets: [{ factId: 'F-DECODE', to: 'set' }], locationId: 'LOC-COMMS', itemId: 'CHM-A-007', mechanicIds: ['LIB-MECH-DECRYPT'], sensorIds: ['BTN-11', 'NFC-03'] },
+      'N-GATE': { id: 'N-GATE', kind: 'event', title: 'Sector 8 gate opens', x: 1060, y: 340, body: 'The gate answers — however the attempt went.', color: null, teamId: null, sets: [{ factId: 'F-GATE', to: 'set' }], locationId: 'LOC-S8', itemId: 'CHM-A-002', mechanicIds: ['LIB-MECH-ACCESS'], sensorIds: ['PRX-02'] },
+      'N-TWIST': { id: 'N-TWIST', kind: 'event', title: 'False-flag intercept', x: 1060, y: 560, body: 'A radio intercept names one player team as "the decoys". Broadcast on comms at the act break.', color: null, teamId: null, sets: [{ factId: 'F-TRAITOR', to: 'set' }], locationId: null, itemId: null, mechanicIds: [], sensorIds: [] },
+      'N-END': { id: 'N-END', kind: 'event', title: 'Extraction', x: 1400, y: 560, body: 'Teams call in the beacon and exfiltrate before the timer.', color: null, teamId: null, sets: [], locationId: null, itemId: null, mechanicIds: [], sensorIds: [] },
+      // A collapsed Additional Node: the Dragon & the City story concept,
+      // instantiated for this game (substitutions live in conceptAnswers).
+      'N-CPT1': {
+        id: 'N-CPT1', kind: 'concept', conceptKind: 'storyConcept', conceptId: 'LIB-CPT-DRAGON',
+        title: 'Dragon & the City', x: 40, y: 430, body: '', color: null, teamId: null, sets: [], collapsed: true,
+        conceptAnswers: { dragon: 'The creditor syndicate (played by the patrol crew).', city: 'The Sector 7 stallholders.' },
+        sub: {
+          nodes: {
+            S1: { id: 'S1', kind: 'character', title: 'The Dragon', x: 40, y: 60, body: 'The looming threat. Cast it per game: creditor, rival, storm, plague.', color: null },
+            S2: { id: 'S2', kind: 'storyLocation', title: 'The City', x: 40, y: 260, body: 'What is worth protecting — a place, a community, a way of life.', color: null },
+            S3: { id: 'S3', kind: 'event', title: 'First Tribute', x: 340, y: 160, body: 'The Dragon takes something small. The defenders feel the shape of the threat.', color: null },
+            S4: { id: 'S4', kind: 'quest', title: 'Find the Weakness', x: 640, y: 60, body: 'Players hunt the Dragon’s price or blind spot.', color: null },
+            S5: { id: 'S5', kind: 'event', title: 'The Confrontation', x: 640, y: 260, body: 'The City stands or falls. Use Outcome Branches, never pass/fail.', color: null },
+          },
+          edges: [
+            { from: 'S1', to: 'S3', label: 'threatens', color: null },
+            { from: 'S2', to: 'S3', label: 'suffers', color: null },
+            { from: 'S3', to: 'S4', label: 'provokes', color: null },
+            { from: 'S4', to: 'S5', label: 'armed with truth', color: null },
+          ],
+        },
+      },
     },
-    // Edges: `label` is the plain-language condition (a GM reads it). A branch
-    // gate may also carry factId + expect ('set'|'unset') so it references a
-    // tracked fact directly — a coloured fact dot then shows on the connection.
+
+    // SUBNODES: precision enrichments. parentRef null = floating unattached on
+    // the canvas; {nodeId} = attached to a node; {subnodeId, branchIndex?} =
+    // child subnode (of a Relationship/State change, or of one Outcome branch).
+    subnodes: {
+      'SB-OB1': {
+        id: 'SB-OB1', kind: 'outcomeBranches', title: 'Key attempt outcomes', x: 380, y: 560,
+        parentRef: { nodeId: 'N-KEY' }, notes: '', keywords: [], history: [],
+        mode: 'mixed', selectionType: 'single',
+        branches: [
+          { label: 'Clean lift (Yes, and…)', outcome: 'Key retrieved unseen; the patrol log still shows all-clear — a free head start.', mechanicId: 'LIB-MECH-LOCK' },
+          { label: 'Noisy grab (Yes, but…)', outcome: 'Key retrieved, but the alarm reroutes the patrols toward the comms bench.', mechanicId: 'LIB-MECH-LOCK' },
+          { label: 'Driven off (No, but…)', outcome: 'The key stays locked away, but a dropped patrol roster reveals the maintenance bypass.', mechanicId: null },
+        ],
+      },
+      'SB-NR1': {
+        id: 'SB-NR1', kind: 'narrativeResponse', title: 'Alarm aftermath', x: 700, y: 640,
+        parentRef: { subnodeId: 'SB-OB1', branchIndex: 1 }, notes: '', keywords: [], history: [],
+        text: 'Mank hears the alarm from the depot and quietly moves his ledger. Whoever visits him next finds him wary and the prices doubled.',
+      },
+      'SB-RC1': {
+        id: 'SB-RC1', kind: 'relChange', title: 'Mank turns wary', x: 1060, y: 780,
+        parentRef: { nodeId: 'N-TWIST' }, notes: '', keywords: [], history: [],
+        relType: 'Trust', targets: 'Quartermaster Mank → the named team', direction: 'no-but', intensity: 'moderate',
+        trigger: 'The intercept names the team as decoys.', effects: 'Mank stops trading with the named team unless they return his equipment first.', mechanicId: null,
+      },
+      'SB-ET1': {
+        id: 'SB-ET1', kind: 'emotionalTone', title: 'Tone', x: 1360, y: 820,
+        parentRef: { subnodeId: 'SB-RC1' }, notes: '', keywords: [], history: [],
+        tags: ['Lingering Distrust', 'Quiet Hope'],
+      },
+      'SB-LA1': {
+        id: 'SB-LA1', kind: 'locationArchetype', title: 'Warehouse identity', x: 700, y: 40,
+        parentRef: { nodeId: 'N-S7' }, notes: '', keywords: [], history: [],
+        archetype: 'Good Place to Defend', influence: 'Events here favor holding ground and ambush framing; quests here should reward preparation.',
+      },
+      // Floating, deliberately unattached — drag-link it when you decide where
+      // grief lands in this run.
+      'SB-IS1': {
+        id: 'SB-IS1', kind: 'internalState', title: 'Grief (unassigned)', x: 1400, y: 90,
+        parentRef: null, notes: 'Attach to whichever character loses the most in Act 2.', keywords: [], history: [],
+        stateType: 'Grief', level: 'rising', trigger: 'The loss at the act break.', effects: 'The character refuses comms and must be met face to face.', mechanicId: null,
+      },
+    },
+
+    // FRAMES: purely visual grouping. Moving a frame moves everything whose
+    // center sits inside it; connections and data are unaffected.
+    frames: {
+      'FR-1': { id: 'FR-1', label: 'Act 1 — the key', x: 20, y: 10, w: 660, h: 700, color: '#5CA8F5' },
+    },
+    // Edges: `label` is the plain-language condition (a GM reads it). A gate
+    // may also carry factId + expect ('set'|'unset'). Edges may start from an
+    // Outcome Branches subnode — that is how branch paths merge back into
+    // later nodes (multi-path merging happens on the canvas).
     edges: [
-      { from: 'N-BRIEF', to: 'N-S7', label: 'game start', kindColor: 'story' },
-      { from: 'N-S7', to: 'N-KEY', label: 'locker corridor', kindColor: 'location' },
-      { from: 'N-KEY', to: 'N-CHOICE', label: 'breach attempt', kindColor: 'objective' },
-      { from: 'N-CHOICE', to: 'N-PATROL', label: 'IF alarm raised', kindColor: 'enemy', factId: 'F-ALARM', expect: 'set' },
-      { from: 'N-CHOICE', to: 'N-DECRYPT', label: 'ELSE stayed quiet', kindColor: 'mechanic' },
-      { from: 'N-KEY', to: 'N-GATE', label: 'IF Cipher-Key retrieved', kindColor: 'sensor', factId: 'F-KEY', expect: 'set' },
-      { from: 'N-DECRYPT', to: 'N-GATE', label: 'REQUIRES decode', kindColor: 'mechanic', factId: 'F-DECODE', expect: 'set' },
-      { from: 'N-DECRYPT', to: 'N-RECOV', label: 'IF stalled 15 min', kindColor: 'mechanic' },
-      { from: 'N-RECOV', to: 'N-DECRYPT', label: 'back to it', kindColor: 'mechanic' },
-      { from: 'N-GATE', to: 'N-TWIST', label: 'act break', kindColor: 'sensor' },
-      { from: 'N-TWIST', to: 'N-REVEAL', label: 'suspicion seeded', kindColor: 'story', factId: 'F-TRAITOR', expect: 'set' },
-      { from: 'N-REVEAL', to: 'N-END', label: 'the turn', kindColor: 'story' },
+      { from: 'N-BRIEF', to: 'N-S7', label: 'game start', kindColor: 'event' },
+      { from: 'N-S7', to: 'N-KEY', label: 'locker corridor', kindColor: 'storyLocation' },
+      { from: 'SB-OB1', to: 'N-PATROL', label: 'Noisy grab', kindColor: 'character', factId: 'F-ALARM', expect: 'set' },
+      { from: 'SB-OB1', to: 'N-DECRYPT', label: 'any key branch', kindColor: 'quest' },
+      { from: 'N-KEY', to: 'N-GATE', label: 'IF Cipher-Key retrieved', kindColor: 'event', factId: 'F-KEY', expect: 'set' },
+      { from: 'N-DECRYPT', to: 'N-GATE', label: 'REQUIRES decode', kindColor: 'quest', factId: 'F-DECODE', expect: 'set' },
+      { from: 'N-GATE', to: 'N-TWIST', label: 'act break', kindColor: 'event' },
+      { from: 'N-TWIST', to: 'N-END', label: 'the turn', kindColor: 'event', factId: 'F-TRAITOR', expect: 'set' },
     ],
-    // Weaver alignments: story beats ↔ physical tasks they are tied to.
+    // Weaver alignments: story beats ↔ the physical tasks they are tied to.
     alignments: [
-      { story: 'N-BRIEF', task: 'N-KEY' },
-      { story: 'N-TWIST', task: 'N-DECRYPT' },
-      { story: 'N-END', task: 'N-GATE' },
+      { story: 'N-BRIEF', task: 'TSK-1' },
+      { story: 'N-KEY', task: 'TSK-2' },
+      { story: 'N-END', task: 'TSK-4' },
     ],
     // Weaver left-panel layout for the macro story track (nodeId → {x,y}).
     storyTrack: {
-      'N-BRIEF': { x: 60, y: 40 }, 'N-CHOICE': { x: 60, y: 200 }, 'N-REVEAL': { x: 60, y: 360 },
-      'N-TWIST': { x: 340, y: 40 }, 'N-RECOV': { x: 340, y: 200 }, 'N-END': { x: 340, y: 360 },
+      'N-BRIEF': { x: 60, y: 40 }, 'N-KEY': { x: 60, y: 200 }, 'N-GATE': { x: 60, y: 360 },
+      'N-TWIST': { x: 340, y: 40 }, 'N-END': { x: 340, y: 200 },
     },
 
     // TASKS: the surface task flow (linear + branching). Each task node carries
     // its own nested `sub` detail graph — double-click a task to open it and
     // spec where to stand, how many tries, props, powers, effects.
     taskNodes: {
-      'TSK-1': { id: 'TSK-1', kind: 'task', title: 'Assemble at Sector 7', x: 40, y: 200, body: 'All teams reach the warehouse floor and check in.', color: null },
-      'TSK-2': { id: 'TSK-2', kind: 'task', title: 'Retrieve the Cipher-Key', x: 360, y: 200, body: 'Recover the brass key from the locker corridor.', color: null,
+      'TSK-1': { id: 'TSK-1', kind: 'task', title: 'Assemble at Sector 7', x: 40, y: 200, startMin: 540, durationMin: 30, body: 'All teams reach the warehouse floor and check in.', color: null },
+      'TSK-2': { id: 'TSK-2', kind: 'task', title: 'Retrieve the Cipher-Key', x: 360, y: 200, startMin: 600, durationMin: 45, body: 'Recover the brass key from the locker corridor.', color: null,
         sub: {
           nodes: {
             D1: { id: 'D1', kind: 'placement', title: 'Locker corridor, bay 12', x: 40, y: 60, body: 'Key sits in locker 12; approach from the south aisle only.', color: null },
@@ -517,8 +748,8 @@ export function makeProjectSeed() {
           },
           edges: [{ from: 'D1', to: 'D2', label: 'on arrival', color: null }, { from: 'D2', to: 'D3', label: 'on success', color: null }],
         } },
-      'TSK-3': { id: 'TSK-3', kind: 'task', title: 'Decode the Dataslate', x: 680, y: 90, body: 'Solve the cipher at the comms bench.', color: null },
-      'TSK-4': { id: 'TSK-4', kind: 'task', title: 'Score the extraction beacon', x: 680, y: 320, body: 'Land the beacon in the extraction crate to call exfil.', color: null,
+      'TSK-3': { id: 'TSK-3', kind: 'task', title: 'Decode the Dataslate', x: 680, y: 90, startMin: 780, durationMin: 60, body: 'Solve the cipher at the comms bench.', color: null },
+      'TSK-4': { id: 'TSK-4', kind: 'task', title: 'Score the extraction beacon', x: 680, y: 320, startMin: 900, durationMin: 45, body: 'Land the beacon in the extraction crate to call exfil.', color: null,
         sub: {
           nodes: {
             D1: { id: 'D1', kind: 'placement', title: 'Throw line: 3 m from the crate', x: 40, y: 40, body: 'Tape a throw line 3 metres from the net crate; feet behind the line.', color: null },

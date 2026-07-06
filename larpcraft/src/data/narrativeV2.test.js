@@ -51,11 +51,11 @@ describe('typed narrative nodes', () => {
     for (const k of Object.keys(NARR_NODE_TYPES)) expect(NARRATIVE_KINDS).toContain(k);
   });
 
-  it('the demo uses the new typed node kinds', () => {
+  it('the demo uses the Narrative Weaver base + concept node kinds', () => {
     const kinds = new Set(Object.values(makeProjectSeed().nodes).map((n) => n.kind));
-    expect(kinds.has('branch')).toBe(true);
-    expect(kinds.has('reveal')).toBe(true);
-    expect(kinds.has('timed')).toBe(true);
+    expect(kinds.has('event')).toBe(true);
+    expect(kinds.has('quest')).toBe(true);
+    expect(kinds.has('concept')).toBe(true);
   });
 
   it('every node type has a colour and a known icon', () => {

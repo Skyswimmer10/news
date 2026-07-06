@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { importItem, importLocation, importStory, importNarrative, importMechPrimitive, importMechanic, narrativeToStructNode, storyTrackToStructure } from './bridge.js';
 import { reducer } from './reducer.js';
-import { makeLibrarySeed, makeProjectSeed, makeEmptyProject, LIB_BLANK, LIB_PREFIX } from '../data/seed.js';
+import { makeLibrarySeed, makeProjectSeed, makeEmptyProject, LIB_BLANK, LIB_PREFIX, NARRATIVE_KINDS } from '../data/seed.js';
 import { genId } from '../data/csvSchemas.js';
 
 const lib = makeLibrarySeed();
@@ -79,9 +79,9 @@ describe('library → project import bridge', () => {
   it('storyTrackToStructure saves the macro story arc as a Story Structure', () => {
     const proj = makeProjectSeed();
     const struct = storyTrackToStructure(proj, 'LIB-STORY-N001', 'Chimera arc');
-    // only narrative-side nodes (beat/branch/reveal/timed/recovery), remapped
-    // to S-ids and normalised to kind 'story' for the library structure.
-    const narrativeCount = Object.values(proj.nodes).filter((n) => ['story', 'beat', 'reveal', 'branch', 'fact', 'converge', 'timed', 'recovery'].includes(n.kind)).length;
+    // narrative-side nodes (event/character/storyLocation/item/quest/concept),
+    // remapped to S-ids and normalised to kind 'story' for the library structure.
+    const narrativeCount = Object.values(proj.nodes).filter((n) => NARRATIVE_KINDS.includes(n.kind)).length;
     expect(Object.keys(struct.nodes).length).toBe(narrativeCount);
     expect(Object.values(struct.nodes).every((n) => n.kind === 'story')).toBe(true);
     // the N-TWIST → N-END story edge survives, remapped

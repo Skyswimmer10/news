@@ -4,7 +4,12 @@ import { resolveNode, itemsAssignedToPlayer, sensorsAssignedToPlayer, locateGrap
 import { importItem, importLocation, importSensor, importStory, importNarrative, importMechPrimitive } from '../state/bridge.js';
 import { Chip, SectionLabel, BuildFlow, Pill, ENTITY_COLORS, PrimIcon } from './bits.jsx';
 import ImageUploader from './ImageUploader.jsx';
-import { NARR_NODE_TYPES, NARRATIVE_KINDS, FACT_KINDS, TASK_DETAIL_TYPES } from '../data/seed.js';
+import {
+  NARR_NODE_TYPES, NARRATIVE_KINDS, FACT_KINDS, TASK_DETAIL_TYPES,
+  BASE_NODE_TYPES, BASE_KINDS, ADDITIONAL_NODE_TYPES, SUBNODE_TYPES, SUBNODE_BLANK,
+  GRADUATED_OUTCOMES, LOCATION_ARCHETYPES,
+} from '../data/seed.js';
+import { genId } from '../data/csvSchemas.js';
 
 const minToTime = (m) => (Number.isFinite(m) ? `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}` : '');
 const timeToMin = (t) => { const [h, m] = (t || '').split(':').map(Number); return Number.isFinite(h) && Number.isFinite(m) ? h * 60 + m : null; };
@@ -463,6 +468,589 @@ function FactPanel({ fact }) {
   );
 }
 
+// ===========================================================================
+// NARRATIVE WEAVER inspector panels. Every node and subnode follows one fixed
+// section order (progressive disclosure; history collapsed):
+//   Core Identity → Main Content → Composition → Type-specific →
+//   Relationships / Links → Notes & Keywords → Change History
+// ===========================================================================
+
+function ISection({ label, children, collapsed = false }) {
+  const [open, setOpen] = useState(!collapsed);
+  return (
+    <div className={`isect isec${open ? '' : ' closed'}`}>
+      <button className="isechead" onClick={() => setOpen(!open)}>
+        <span className="caret">{open ? '▾' : '▸'}</span>{label}
+      </button>
+      {open && <div className="isecbody">{children}</div>}
+    </div>
+  );
+}
+
+const timeAgo = (t) => {
+  const m = Math.max(0, Math.round((Date.now() - t) / 60000));
+  if (m < 1) return 'just now';
+  if (m < 60) return `${m} min ago`;
+  const h = Math.round(m / 60);
+  return h < 24 ? `${h} h ago` : `${Math.round(h / 24)} d ago`;
+};
+
+function HistorySection({ entity }) {
+  const log = [...(entity.history || [])].reverse();
+  return (
+    <ISection label="Change History" collapsed>
+      {log.length === 0 && <div className="hint">No recorded edits yet.</div>}
+      {log.map((h, i) => (
+        <div className="histrow" key={i}><span className="dim">{timeAgo(h.t)}</span> — {h.fields.join(', ')}</div>
+      ))}
+    </ISection>
+  );
+}
+
+function NotesSection({ entity, upd }) {
+  return (
+    <ISection label="Notes & Keywords" collapsed={!entity.notes && !(entity.keywords || []).length}>
+      <TextField label="Designer notes" textarea value={entity.notes} onCommit={(v) => upd({ notes: v })} />
+      <TextField label="Keywords (comma separated)" value={(entity.keywords || []).join(', ')}
+        onCommit={(v) => upd({ keywords: v.split(',').map((t) => t.trim()).filter(Boolean) })} />
+    </ISection>
+  );
+}
+
+// Chips of the subnodes attached to a node, with attach / create controls.
+function CompositionSection({ node }) {
+  const s = useGame();
+  const dispatch = useDispatch();
+  const subs = Object.values(s.subnodes || {});
+  const attached = subs.filter((sn) => sn.parentRef?.nodeId === node.id);
+  const compatible = (t) => t.attachesTo && (t.attachesTo.includes('*') || t.attachesTo.includes(node.kind));
+  const floating = subs.filter((sn) => !sn.parentRef && compatible(SUBNODE_TYPES[sn.kind] || {}));
+  const attach = (id) => dispatch({ type: 'UPDATE_ENTITY', coll: 'subnodes', id, patch: { parentRef: { nodeId: node.id } } });
+  const createAttached = (kind) => {
+    const id = genId(s.subnodes || {}, `${s.meta.prefix}-SB-`);
+    dispatch({ type: 'ADD_ENTITY', coll: 'subnodes', entity: { ...SUBNODE_BLANK(id, kind), x: node.x + 40, y: node.y + 180, parentRef: { nodeId: node.id } } });
+  };
+  return (
+    <ISection label={`Composition · ${attached.length} attached subnode${attached.length === 1 ? '' : 's'}`}>
+      <div className="senslist">
+        {attached.map((sn) => {
+          const t = SUBNODE_TYPES[sn.kind] || { color: '#F08CB4', label: sn.kind };
+          return (
+            <div className="sensrow" key={sn.id}>
+              <span className="sq" style={{ background: t.color }} />
+              <div><b>{sn.title}</b> <span className="dim">{t.label}</span></div>
+              <button className="x" title="Detach (keeps the subnode on the canvas)"
+                onClick={() => dispatch({ type: 'UPDATE_ENTITY', coll: 'subnodes', id: sn.id, patch: { parentRef: null } })}>⊘</button>
+            </div>
+          );
+        })}
+        {floating.length > 0 && (
+          <select className="chip-add" value="" onChange={(e) => e.target.value && attach(e.target.value)}>
+            <option value="">⚭ attach a floating subnode…</option>
+            {floating.map((sn) => <option key={sn.id} value={sn.id}>{sn.title} · {SUBNODE_TYPES[sn.kind]?.label}</option>)}
+          </select>
+        )}
+        <select className="chip-add" value="" onChange={(e) => e.target.value && createAttached(e.target.value)}>
+          <option value="">+ new subnode here…</option>
+          {Object.values(SUBNODE_TYPES).filter(compatible).map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
+        </select>
+      </div>
+    </ISection>
+  );
+}
+
+// Outgoing conditions + fact recording + mechanic link, shared by base nodes.
+function RelationshipsSection({ node }) {
+  const s = useGame();
+  const lib = useLibrary();
+  const dispatch = useDispatch();
+  const upd = (patch) => dispatch({ type: 'UPDATE_ENTITY', coll: 'nodes', id: node.id, patch });
+  const updEdge = (e, patch) => dispatch({ type: 'UPDATE_EDGE', from: e.from, to: e.to, patch });
+  const facts = s.facts || {};
+  const outgoing = s.edges.filter((e) => e.from === node.id);
+  const incoming = s.edges.filter((e) => e.to === node.id);
+  const sets = node.sets || [];
+  const mechanicIds = node.mechanicIds || [];
+  const endName = (id) => s.nodes[id]?.title || s.subnodes?.[id]?.title || id;
+  return (
+    <ISection label="Relationships / Links">
+      <SectionLabel>Outgoing conditions</SectionLabel>
+      {outgoing.length === 0 && <div className="hint">No outgoing links — drag from the ○ port on the canvas.</div>}
+      {outgoing.map((e, i) => {
+        const f = e.factId && facts[e.factId];
+        const fk = f && (FACT_KINDS[f.kind] || { color: '#8B92A6' });
+        return (
+          <div className="condrow" key={i}>
+            <div className="condhead">→ <b>{endName(e.to)}</b></div>
+            <input className="field-input" placeholder='Condition, e.g. "IF key retrieved"'
+              defaultValue={e.label || ''} onBlur={(ev) => { if (ev.target.value !== (e.label || '')) updEdge(e, { label: ev.target.value }); }} />
+            <div className="condfact">
+              <select className="field-input" value={e.factId || ''} onChange={(ev) => updEdge(e, { factId: ev.target.value || null, expect: ev.target.value ? (e.expect || 'set') : null })}>
+                <option value="">— no fact gate —</option>
+                {Object.values(facts).map((ff) => <option key={ff.id} value={ff.id}>{ff.name}</option>)}
+              </select>
+              {e.factId && (
+                <select className="field-input narrow" value={e.expect || 'set'} onChange={(ev) => updEdge(e, { expect: ev.target.value })}>
+                  <option value="set">is set</option>
+                  <option value="unset">is NOT set</option>
+                </select>
+              )}
+              {f && <span className="factchip sm" style={{ borderColor: fk.color, color: fk.color }}><i style={{ background: fk.color }} />{f.name}</span>}
+            </div>
+          </div>
+        );
+      })}
+      {incoming.length > 0 && (
+        <>
+          <SectionLabel>Reached from</SectionLabel>
+          <div className="chips">{incoming.map((e, i) => <Chip key={i} color="#8B92A6">← {endName(e.from)}</Chip>)}</div>
+        </>
+      )}
+      <SectionLabel>Records facts</SectionLabel>
+      <div className="senslist">
+        {sets.map((x) => {
+          const f = facts[x.factId];
+          if (!f) return null;
+          const fk = FACT_KINDS[f.kind] || { color: '#8B92A6', label: f.kind };
+          return (
+            <div className="sensrow" key={x.factId}>
+              <span className="sq" style={{ background: fk.color }} />
+              <div><b>{f.name}</b> <span className="dim">{fk.label}</span></div>
+              <button className="tinytoggle" onClick={() => upd({ sets: sets.map((y) => (y.factId === x.factId ? { ...y, to: y.to === 'unset' ? 'set' : 'unset' } : y)) })}>
+                {x.to === 'unset' ? 'clears' : 'sets'}
+              </button>
+              <button className="x" onClick={() => upd({ sets: sets.filter((y) => y.factId !== x.factId) })} aria-label="Remove">×</button>
+            </div>
+          );
+        })}
+        <select className="chip-add" value="" onChange={(e) => e.target.value && upd({ sets: [...sets, { factId: e.target.value, to: 'set' }] })}>
+          <option value="">+ record a fact…</option>
+          {Object.values(facts).filter((f) => !sets.some((x) => x.factId === f.id)).map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+        </select>
+      </div>
+      <SectionLabel>Link to Mechanic Node</SectionLabel>
+      <div className="chips">
+        {mechanicIds.map((id) => lib.mechanics[id] && (
+          <Chip key={id} color={ENTITY_COLORS.mechanic} onRemove={() => upd({ mechanicIds: mechanicIds.filter((m) => m !== id) })}>
+            {lib.mechanics[id].name}
+          </Chip>
+        ))}
+        <select className="chip-add" value="" onChange={(e) => e.target.value && upd({ mechanicIds: [...mechanicIds, e.target.value] })}>
+          <option value="">+ link mechanic…</option>
+          {Object.values(lib.mechanics).filter((m) => !mechanicIds.includes(m.id)).map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+        </select>
+      </div>
+      <div className="hint">The narrative layer stays mechanic-free — this is only a reference into the mechanic layer.</div>
+    </ISection>
+  );
+}
+
+// ---- Base Node (Event / Character / Story Location / Item / Quest) ----
+function BaseNodePanel({ node }) {
+  const s = useGame();
+  const lib = useLibrary();
+  const dispatch = useDispatch();
+  const upd = (patch) => dispatch({ type: 'UPDATE_ENTITY', coll: 'nodes', id: node.id, patch });
+  const t = BASE_NODE_TYPES[node.kind];
+  const color = node.color || t?.color || '#8B92A6';
+  const archetype = Object.values(s.subnodes || {}).find((sn) => sn.kind === 'locationArchetype' && sn.parentRef?.nodeId === node.id);
+  const storyConcepts = Object.values(lib.concepts || {}).filter((c) => c.category === 'storyConcept' && c.questions?.length);
+  const appliedConcept = node.conceptId ? lib.concepts?.[node.conceptId] : null;
+  return (
+    <>
+      <div className="ihead">
+        <div className="ihrow"><span className="sq big" style={{ background: color }}>{t && <PrimIcon icon={t.icon} color="#fff" size={13} />}</span><h3>{node.title}</h3></div>
+        <div className="sub">{t?.label ?? node.kind} · <span className="mono">{node.id}</span></div>
+      </div>
+
+      <ISection label="Core Identity">
+        <TextField label="Title" value={node.title} onCommit={(v) => upd({ title: v })} />
+        <SectionLabel>Base type</SectionLabel>
+        <select className="field-input" value={node.kind} onChange={(e) => upd({ kind: e.target.value })}>
+          {Object.values(BASE_NODE_TYPES).map((x) => <option key={x.id} value={x.id}>{x.label}</option>)}
+        </select>
+        <SectionLabel>Team lane</SectionLabel>
+        <select className="field-input" value={node.teamId ?? ''} onChange={(e) => upd({ teamId: e.target.value || null })}>
+          <option value="">Shared · all teams</option>
+          {Object.values(s.teams).map((tm) => <option key={tm.id} value={tm.id}>{tm.name}</option>)}
+        </select>
+      </ISection>
+
+      <ISection label="Main Content">
+        <TextField label="Description" textarea value={node.body} onCommit={(v) => upd({ body: v })} />
+        <SectionLabel>Image · optional</SectionLabel>
+        <ImageUploader coll="nodes" entity={node} label="Node image" />
+      </ISection>
+
+      <CompositionSection node={node} />
+
+      {node.kind === 'event' && (
+        <ISection label="Type-specific · Event">
+          <SectionLabel>Apply Story Concept</SectionLabel>
+          <select className="field-input" value={node.conceptId ?? ''} onChange={(e) => upd({ conceptId: e.target.value || null })}>
+            <option value="">— none —</option>
+            {storyConcepts.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+          {appliedConcept?.questions?.map((q) => (
+            <TextField key={q.key} label={q.label} textarea
+              value={node.conceptAnswers?.[q.key] ?? ''}
+              onCommit={(v) => upd({ conceptAnswers: { ...(node.conceptAnswers || {}), [q.key]: v } })} />
+          ))}
+          {appliedConcept && <div className="hint">Answers live only in this game — the library template keeps its canonical name and questions.</div>}
+        </ISection>
+      )}
+      {node.kind === 'storyLocation' && (
+        <ISection label="Type-specific · Story Location">
+          <SectionLabel>Archetype</SectionLabel>
+          {archetype
+            ? <div className="chips"><Chip color={SUBNODE_TYPES.locationArchetype.color}>{archetype.archetype}</Chip></div>
+            : <div className="hint">No Location Archetype attached — add one in Composition to give this place a personality.</div>}
+          <SectionLabel>Bound venue record</SectionLabel>
+          <select className="field-input" value={node.locationId ?? ''} onChange={(e) => upd({ locationId: e.target.value || null })}>
+            <option value="">— none —</option>
+            {Object.values(s.locations).map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+          </select>
+        </ISection>
+      )}
+      {node.kind === 'item' && (
+        <ISection label="Type-specific · Item">
+          <SectionLabel>Bound prop record</SectionLabel>
+          <select className="field-input" value={node.itemId ?? ''} onChange={(e) => upd({ itemId: e.target.value || null })}>
+            <option value="">— none —</option>
+            {Object.values(s.items).map((i) => <option key={i.id} value={i.id}>{i.name} · {i.id}</option>)}
+          </select>
+          {node.itemId && s.items[node.itemId] && <div className="chips" style={{ marginTop: 8 }}><Pill availability={s.items[node.itemId].availability} /></div>}
+        </ISection>
+      )}
+      {node.kind === 'character' && (
+        <ISection label="Type-specific · Character">
+          <TextField label="Casting / actor notes" textarea value={node.casting} onCommit={(v) => upd({ casting: v })}
+            placeholder="Author intent and key lines — real actors improvise within bounds." />
+        </ISection>
+      )}
+
+      <RelationshipsSection node={node} />
+      <NotesSection entity={node} upd={upd} />
+      <HistorySection entity={node} />
+    </>
+  );
+}
+
+// ---- Additional Node instance (concept container) on the game canvas ----
+function ConceptPanel({ node }) {
+  const s = useGame();
+  const lib = useLibrary();
+  const dispatch = useDispatch();
+  const libDispatch = useLibraryDispatch();
+  const upd = (patch) => dispatch({ type: 'UPDATE_ENTITY', coll: 'nodes', id: node.id, patch });
+  const meta = ADDITIONAL_NODE_TYPES[node.conceptKind] || { label: 'Concept', color: '#E8D25C', icon: 'book' };
+  const template = node.conceptId ? lib.concepts?.[node.conceptId] : null;
+  const cnt = Object.keys(node.sub?.nodes || {}).length;
+  const [savedAs, setSavedAs] = useState(null);
+  const saveToLibrary = () => {
+    const id = genId(lib.concepts || {}, 'LIB-CPT-N');
+    libDispatch({
+      type: 'ADD_ENTITY', coll: 'concepts',
+      entity: { id, category: node.conceptKind || 'storyConcept', name: node.title, description: node.body || '', premade: false, questions: template?.questions || [], example: {}, nodes: node.sub?.nodes || {}, edges: node.sub?.edges || [] },
+    });
+    setSavedAs(id);
+    setTimeout(() => setSavedAs(null), 5000);
+  };
+  return (
+    <>
+      <div className="ihead">
+        <div className="ihrow"><span className="sq big" style={{ background: meta.color }}><PrimIcon icon={meta.icon} color="#fff" size={13} /></span><h3>{node.title}</h3></div>
+        <div className="sub">{meta.label} · {cnt} internal node{cnt === 1 ? '' : 's'}{template && <> · from <b>{template.name}</b></>}</div>
+      </div>
+      <ISection label="Core Identity">
+        <TextField label="Name (this game's copy)" value={node.title} onCommit={(v) => upd({ title: v })} />
+        <div className="chips">
+          <button className="btn" onClick={() => upd({ collapsed: !(node.collapsed !== false) ? false : true })}>
+            {node.collapsed === false ? '⊟ Collapse on canvas' : '⊞ Expand on canvas'}
+          </button>
+        </div>
+        <div className="hint">Double-click the node (or its ✎ Edit) to open the dedicated editing viewport.</div>
+      </ISection>
+      <ISection label="Main Content">
+        <TextField label="Summary" textarea value={node.body} onCommit={(v) => upd({ body: v })} />
+      </ISection>
+      {template?.questions?.length > 0 && (
+        <ISection label={`Type-specific · ${template.name}`}>
+          {template.questions.map((q) => (
+            <TextField key={q.key} label={q.label} textarea
+              value={node.conceptAnswers?.[q.key] ?? ''}
+              onCommit={(v) => upd({ conceptAnswers: { ...(node.conceptAnswers || {}), [q.key]: v } })} />
+          ))}
+          <div className="hint">Substitutions (dragon → debt, city → home…) live only in this game; the library template keeps its canonical name.</div>
+        </ISection>
+      )}
+      <ISection label="Relationships / Links">
+        <button className="btn primary wide" onClick={saveToLibrary}>{savedAs ? `Saved ✓ ${savedAs}` : '⇪ Save to Library as reusable template'}</button>
+        <div className="chips" style={{ marginTop: 8 }}>
+          <button className="linkbtn" onClick={() => {
+            const frameId = genId(s.frames || {}, 'FR-');
+            dispatch({ type: 'COMPOSITE_TO_FRAME', nodeId: node.id, frameId });
+          }}>▭ Convert to Frame (spill contents onto canvas)</button>
+        </div>
+      </ISection>
+      <NotesSection entity={node} upd={upd} />
+      <HistorySection entity={node} />
+    </>
+  );
+}
+
+// ---- Child-subnode chips + creators shared by relChange / internalState and
+// individual Outcome branches. parentRef = {subnodeId, branchIndex?}.
+function ChildSubnodes({ parentId, branchIndex = null, onOpen }) {
+  const s = useGame();
+  const dispatch = useDispatch();
+  const children = Object.values(s.subnodes || {}).filter((sn) =>
+    sn.parentRef?.subnodeId === parentId && (sn.parentRef.branchIndex ?? null) === branchIndex);
+  const create = (kind) => {
+    const parent = s.subnodes[parentId];
+    const id = genId(s.subnodes || {}, `${s.meta.prefix}-SB-`);
+    dispatch({
+      type: 'ADD_ENTITY', coll: 'subnodes',
+      entity: { ...SUBNODE_BLANK(id, kind), x: (parent?.x ?? 100) + 60, y: (parent?.y ?? 100) + 150, parentRef: { subnodeId: parentId, ...(branchIndex != null ? { branchIndex } : {}) } },
+    });
+  };
+  return (
+    <div className="chips childsubs">
+      {children.map((sn) => {
+        const t = SUBNODE_TYPES[sn.kind];
+        return <Chip key={sn.id} color={t?.color} onClick={() => onOpen(sn.id)}
+          onRemove={() => dispatch({ type: 'UPDATE_ENTITY', coll: 'subnodes', id: sn.id, patch: { parentRef: null } })}>{sn.title}</Chip>;
+      })}
+      <button className="linkbtn" onClick={() => create('narrativeResponse')}>+ Narrative Response</button>
+      <button className="linkbtn" onClick={() => create('emotionalTone')}>+ Emotional Tone</button>
+    </div>
+  );
+}
+
+// ---- Subnode inspector: opens as its OWN panel (parent stays reachable) ----
+function SubnodePanel({ sn, onSelect }) {
+  const s = useGame();
+  const lib = useLibrary();
+  const dispatch = useDispatch();
+  const upd = (patch) => dispatch({ type: 'UPDATE_ENTITY', coll: 'subnodes', id: sn.id, patch });
+  const t = SUBNODE_TYPES[sn.kind] || { label: sn.kind, color: '#F08CB4', icon: 'zap' };
+  const pr = sn.parentRef;
+  const parentNode = pr?.nodeId ? s.nodes[pr.nodeId] : null;
+  const parentSub = pr?.subnodeId ? s.subnodes[pr.subnodeId] : null;
+  const openParent = () => {
+    if (parentNode) onSelect({ kind: 'node', id: parentNode.id });
+    else if (parentSub) onSelect({ kind: 'subnode', id: parentSub.id });
+  };
+
+  // Attach targets for a floating subnode.
+  const nodeTargets = t.attachesTo
+    ? Object.values(s.nodes).filter((n) => t.attachesTo.includes('*') ? n.kind !== 'concept' : t.attachesTo.includes(n.kind))
+    : [];
+  const subTargets = t.childOf ? Object.values(s.subnodes || {}).filter((x) => t.childOf.includes(x.kind) && x.id !== sn.id) : [];
+  const branchTargets = t.childOf?.includes('branch')
+    ? Object.values(s.subnodes || {}).filter((x) => x.kind === 'outcomeBranches')
+      .flatMap((ob) => (ob.branches || []).map((b, i) => ({ value: `${ob.id}:${i}`, label: `${ob.title} → ${b.label}` })))
+    : [];
+
+  const mechSelect = (value, onChange) => (
+    <select className="field-input" value={value ?? ''} onChange={(e) => onChange(e.target.value || null)}>
+      <option value="">— no mechanic link —</option>
+      {Object.values(lib.mechanics).map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+    </select>
+  );
+
+  const branches = sn.branches || [];
+  const patchBranch = (i, p) => upd({ branches: branches.map((b, j) => (j === i ? { ...b, ...p } : b)) });
+
+  return (
+    <div className="subpanelwrap">
+      <div className="subpanelbadge" style={{ borderColor: t.color, color: t.color }}>Subnode — separate panel</div>
+      <div className="ihead">
+        <div className="ihrow"><span className="sq big pillsq" style={{ background: t.color }}><PrimIcon icon={t.icon} color="#fff" size={13} /></span><h3>{sn.title}</h3></div>
+        <div className="sub">{t.label} · <span className="mono">{sn.id}</span></div>
+      </div>
+
+      <ISection label="Core Identity">
+        <TextField label="Title" value={sn.title} onCommit={(v) => upd({ title: v })} />
+        <SectionLabel>Attached to</SectionLabel>
+        {pr ? (
+          <div className="chips">
+            <Chip color={t.color} onClick={openParent}>
+              {parentNode?.title || parentSub?.title || '?'}{pr.branchIndex != null && parentSub?.branches?.[pr.branchIndex] ? ` → ${parentSub.branches[pr.branchIndex].label}` : ''}
+            </Chip>
+            <button className="linkbtn" onClick={() => upd({ parentRef: null })}>⊘ Detach</button>
+          </div>
+        ) : (
+          <>
+            <div className="hint">Floating — physically on the canvas, not yet linked.</div>
+            {nodeTargets.length > 0 && (
+              <select className="chip-add" value="" onChange={(e) => e.target.value && upd({ parentRef: { nodeId: e.target.value } })}>
+                <option value="">⚭ attach to a node…</option>
+                {nodeTargets.map((n) => <option key={n.id} value={n.id}>{n.title} · {BASE_NODE_TYPES[n.kind]?.label ?? n.kind}</option>)}
+              </select>
+            )}
+            {subTargets.length > 0 && (
+              <select className="chip-add" value="" onChange={(e) => e.target.value && upd({ parentRef: { subnodeId: e.target.value } })}>
+                <option value="">⚭ attach to a subnode…</option>
+                {subTargets.map((x) => <option key={x.id} value={x.id}>{x.title} · {SUBNODE_TYPES[x.kind]?.label}</option>)}
+              </select>
+            )}
+            {branchTargets.length > 0 && (
+              <select className="chip-add" value="" onChange={(e) => {
+                if (!e.target.value) return;
+                const [sid, bi] = e.target.value.split(':');
+                upd({ parentRef: { subnodeId: sid, branchIndex: Number(bi) } });
+              }}>
+                <option value="">⚭ attach to an outcome branch…</option>
+                {branchTargets.map((b) => <option key={b.value} value={b.value}>{b.label}</option>)}
+              </select>
+            )}
+          </>
+        )}
+      </ISection>
+
+      {sn.kind === 'outcomeBranches' && (
+        <ISection label={`Main Content · ${branches.length} branches`}>
+          <div className="frow">
+            <div><SectionLabel>Branch mode</SectionLabel>
+              <select className="field-input" value={sn.mode} onChange={(e) => upd({ mode: e.target.value })}>
+                <option value="choice">Choice-based</option>
+                <option value="performance">Performance-based</option>
+                <option value="mixed">Mixed</option>
+              </select></div>
+            <div><SectionLabel>Selection</SectionLabel>
+              <select className="field-input" value={sn.selectionType} onChange={(e) => upd({ selectionType: e.target.value })}>
+                <option value="single">Single-select</option>
+                <option value="multi">Multi-select</option>
+              </select></div>
+          </div>
+          <div className="hint">Story context and flavor text belong in the parent Event / Quest — branches hold only outcomes. Merge paths by connecting branches to the same later node on the canvas.</div>
+          {branches.map((b, i) => (
+            <div className="branchcard" key={i}>
+              <div className="branchhead">
+                <span className="branchno" style={{ background: t.color }}>{i + 1}</span>
+                <input className="field-input" value={b.label} placeholder="Branch label"
+                  onChange={(e) => patchBranch(i, { label: e.target.value })} />
+                {branches.length > 2 && <button className="x" title="Remove branch" onClick={() => upd({ branches: branches.filter((_, j) => j !== i) })}>×</button>}
+              </div>
+              <textarea className="field-input" rows={2} value={b.outcome} placeholder="Narrative outcome (what this path means)"
+                onChange={(e) => patchBranch(i, { outcome: e.target.value })} />
+              <SectionLabel>Link to Mechanic Node</SectionLabel>
+              {mechSelect(b.mechanicId, (v) => patchBranch(i, { mechanicId: v }))}
+              <SectionLabel>Attached subnodes</SectionLabel>
+              <ChildSubnodes parentId={sn.id} branchIndex={i} onOpen={(id) => onSelect({ kind: 'subnode', id })} />
+            </div>
+          ))}
+          {branches.length < 5 && (
+            <button className="chip addcat" onClick={() => upd({ branches: [...branches, { label: `Branch ${String.fromCharCode(65 + branches.length)}`, outcome: '', mechanicId: null }] })}>
+              + Add branch ({branches.length}/5)
+            </button>
+          )}
+        </ISection>
+      )}
+
+      {sn.kind === 'relChange' && (
+        <ISection label="Main Content">
+          <TextField label="Relationship type" value={sn.relType} onCommit={(v) => upd({ relType: v })} placeholder="Trust, loyalty, rivalry, faction standing…" />
+          <TextField label="Target(s)" value={sn.targets} onCommit={(v) => upd({ targets: v })} placeholder="Who ↔ whom" />
+          <SectionLabel>Change direction (graduated)</SectionLabel>
+          <select className="field-input" value={sn.direction} onChange={(e) => upd({ direction: e.target.value })}>
+            {GRADUATED_OUTCOMES.map((g) => <option key={g.id} value={g.id}>{g.label}</option>)}
+          </select>
+          <TextField label="Intensity" value={sn.intensity} onCommit={(v) => upd({ intensity: v })} placeholder="mild / moderate / severe" />
+          <TextField label="Trigger / cause" textarea value={sn.trigger} onCommit={(v) => upd({ trigger: v })} />
+          <TextField label="Functional effects · what paths this opens or closes" textarea value={sn.effects} onCommit={(v) => upd({ effects: v })} />
+          <SectionLabel>Link to Mechanic Node</SectionLabel>
+          {mechSelect(sn.mechanicId, (v) => upd({ mechanicId: v }))}
+          <SectionLabel>Child subnodes</SectionLabel>
+          <ChildSubnodes parentId={sn.id} onOpen={(id) => onSelect({ kind: 'subnode', id })} />
+        </ISection>
+      )}
+
+      {sn.kind === 'internalState' && (
+        <ISection label="Main Content">
+          <TextField label="State type" value={sn.stateType} onCommit={(v) => upd({ stateType: v })} placeholder="Grief, Poisoned, Boosted, Victorious, Transformed…" />
+          <TextField label="Intensity / level" value={sn.level} onCommit={(v) => upd({ level: v })} />
+          <TextField label="Trigger / cause" textarea value={sn.trigger} onCommit={(v) => upd({ trigger: v })} />
+          <TextField label="Functional effects · what this state changes" textarea value={sn.effects} onCommit={(v) => upd({ effects: v })} />
+          <SectionLabel>Link to Mechanic Node</SectionLabel>
+          {mechSelect(sn.mechanicId, (v) => upd({ mechanicId: v }))}
+          <SectionLabel>Child subnodes</SectionLabel>
+          <ChildSubnodes parentId={sn.id} onOpen={(id) => onSelect({ kind: 'subnode', id })} />
+        </ISection>
+      )}
+
+      {sn.kind === 'locationArchetype' && (
+        <ISection label="Main Content">
+          <SectionLabel>Archetype</SectionLabel>
+          <select className="field-input" value={LOCATION_ARCHETYPES.includes(sn.archetype) ? sn.archetype : '__custom'}
+            onChange={(e) => e.target.value !== '__custom' && upd({ archetype: e.target.value })}>
+            {LOCATION_ARCHETYPES.map((a) => <option key={a} value={a}>{a}</option>)}
+            {!LOCATION_ARCHETYPES.includes(sn.archetype) && <option value="__custom">{sn.archetype} (custom)</option>}
+          </select>
+          <TextField label="Custom archetype" value={sn.archetype} onCommit={(v) => v.trim() && upd({ archetype: v.trim() })} />
+          <TextField label="How it flavors events & quests here" textarea value={sn.influence} onCommit={(v) => upd({ influence: v })} />
+        </ISection>
+      )}
+
+      {sn.kind === 'narrativeResponse' && (
+        <ISection label="Main Content">
+          <TextField label="Story consequence · rich text" textarea value={sn.text} onCommit={(v) => upd({ text: v })} />
+        </ISection>
+      )}
+
+      {sn.kind === 'emotionalTone' && (
+        <ISection label="Main Content">
+          <TextField label="Tone tags (comma separated)" value={(sn.tags || []).join(', ')}
+            onCommit={(v) => upd({ tags: v.split(',').map((x) => x.trim()).filter(Boolean) })}
+            placeholder="Cold Fury, Quiet Hope, Lingering Distrust" />
+          <div className="chips">{(sn.tags || []).map((tag) => <Chip key={tag} color={t.color}>{tag}</Chip>)}</div>
+        </ISection>
+      )}
+
+      <NotesSection entity={sn} upd={upd} />
+      <HistorySection entity={sn} />
+      <div className="isect">
+        <button className="linkbtn danger" onClick={() => { dispatch({ type: 'DELETE_SUBNODE', subnodeId: sn.id }); onSelect(null); }}>Delete subnode (and its children)</button>
+      </div>
+    </div>
+  );
+}
+
+// ---- Frame: purely visual grouping ----
+function FramePanel({ frame, onSelect }) {
+  const s = useGame();
+  const dispatch = useDispatch();
+  const upd = (patch) => dispatch({ type: 'UPDATE_ENTITY', coll: 'frames', id: frame.id, patch });
+  return (
+    <>
+      <div className="ihead">
+        <div className="ihrow"><span className="sq big" style={{ background: frame.color || '#8B92A6' }} /><h3>{frame.label}</h3></div>
+        <div className="sub">Frame · visual grouping only — connections and data are unaffected</div>
+      </div>
+      <ISection label="Core Identity">
+        <TextField label="Label" value={frame.label} onCommit={(v) => upd({ label: v })} />
+        <SectionLabel>Color</SectionLabel>
+        <div className="chips">
+          {NODE_SWATCHES.map((c) => <button key={c} className={`swatch${frame.color === c ? ' on' : ''}`} style={{ background: c }} onClick={() => upd({ color: c })} />)}
+          <button className="linkbtn" onClick={() => upd({ color: null })}>Auto</button>
+        </div>
+      </ISection>
+      <ISection label="Convert">
+        <button className="btn wide" onClick={() => {
+          const nodeId = genId(s.nodes, `${s.meta.prefix}-N-`);
+          dispatch({ type: 'FRAME_TO_COMPOSITE', frameId: frame.id, nodeId });
+          onSelect({ kind: 'node', id: nodeId });
+        }}>⧉ Convert to Composite (concept node)</button>
+        <div className="hint">Everything inside moves into the new node's internal structure; boundary-crossing connections re-point to it.</div>
+      </ISection>
+      <div className="isect">
+        <button className="linkbtn danger" onClick={() => { dispatch({ type: 'DELETE_ENTITY', coll: 'frames', id: frame.id }); onSelect(null); }}>Delete frame (contents stay)</button>
+      </div>
+    </>
+  );
+}
+
 // ---- A node inside a located graph: a surface Task, or a nested detail node
 // (of a task or a narrative beat). Edits flow through the generic GRAPH_* path.
 function GraphNodePanel({ scope, id }) {
@@ -472,24 +1060,26 @@ function GraphNodePanel({ scope, id }) {
   const n = g.nodes[id];
   if (!n) return <div className="empty">Node not found.</div>;
   const upd = (patch) => dispatch({ type: 'GRAPH_UPDATE_NODE', scope, id, patch });
-  const t = TASK_DETAIL_TYPES[n.kind];
+  const isBase = !!BASE_NODE_TYPES[n.kind];
+  const t = TASK_DETAIL_TYPES[n.kind] || BASE_NODE_TYPES[n.kind];
   const isTask = n.kind === 'task';
+  const typePool = isBase ? BASE_NODE_TYPES : TASK_DETAIL_TYPES;
   const color = n.color || t?.color || ENTITY_COLORS[n.kind] || '#8B92A6';
   const subCount = Object.keys(n.sub?.nodes || {}).length;
   return (
     <>
       <div className="ihead">
         <div className="ihrow"><span className="sq big" style={{ background: color }}>{t && <PrimIcon icon={t.icon} color="#fff" size={13} />}</span><h3>{n.title}</h3></div>
-        <div className="sub">{t?.label ?? (isTask ? 'Task' : n.kind)}{scope.parentId ? ' · detail node' : ''} · {n.id}</div>
+        <div className="sub">{t?.label ?? (isTask ? 'Task' : n.kind)}{scope.parentId || scope.parentPath ? ' · internal node' : ''} · {n.id}</div>
       </div>
       {!isTask && (
         <div className="isect">
-          <SectionLabel>Detail type</SectionLabel>
+          <SectionLabel>{isBase ? 'Base type' : 'Detail type'}</SectionLabel>
           <select className="field-input" value={n.kind} onChange={(e) => upd({ kind: e.target.value })}>
-            {Object.values(TASK_DETAIL_TYPES).map((x) => <option key={x.id} value={x.id}>{x.label}</option>)}
+            {Object.values(typePool).map((x) => <option key={x.id} value={x.id}>{x.label}</option>)}
             {!t && <option value={n.kind}>{n.kind}</option>}
           </select>
-          {t && <div className="hint">{t.blurb}</div>}
+          {t?.blurb && <div className="hint">{t.blurb}</div>}
         </div>
       )}
       <TextField label={isTask ? 'Task name' : 'Title'} value={n.title} onCommit={(v) => upd({ title: v })} />
@@ -658,6 +1248,44 @@ function LibStoryPanel({ template }) {
   );
 }
 
+// Additional Node (concept) master template in the Library.
+function LibConceptPanel({ template }) {
+  const libDispatch = useLibraryDispatch();
+  const upd = (patch) => libDispatch({ type: 'UPDATE_ENTITY', coll: 'concepts', id: template.id, patch });
+  const meta = ADDITIONAL_NODE_TYPES[template.category] || { label: 'Concept', color: '#E8D25C', icon: 'book' };
+  const questions = template.questions || [];
+  return (
+    <>
+      <TemplateBadge />
+      <div className="ihead">
+        <div className="ihrow"><span className="sq big" style={{ background: meta.color }}><PrimIcon icon={meta.icon} color="#fff" size={13} /></span><h3>{template.name}</h3></div>
+        <div className="sub mono">{template.id} · {meta.label}{template.premade ? ' · pre-made' : ''}</div>
+      </div>
+      <TextField label="Name" value={template.name} onCommit={(v) => upd({ name: v })} />
+      <div className="isect">
+        <SectionLabel>Category</SectionLabel>
+        <select className="field-input" value={template.category} onChange={(e) => upd({ category: e.target.value })}>
+          {Object.values(ADDITIONAL_NODE_TYPES).map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
+        </select>
+      </div>
+      <TextField label="Description" textarea value={template.description} onCommit={(v) => upd({ description: v })} />
+      <div className="isect">
+        <SectionLabel>Structured questions · appear on nodes that use this concept</SectionLabel>
+        {questions.map((q, i) => (
+          <div className="paramrow" key={i}>
+            <input className="field-input" value={q.label}
+              onChange={(e) => upd({ questions: questions.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)) })} />
+            <button className="x" onClick={() => upd({ questions: questions.filter((_, j) => j !== i) })} aria-label="Remove">×</button>
+          </div>
+        ))}
+        <button className="chip addcat" onClick={() => upd({ questions: [...questions, { key: `q${questions.length + 1}`, label: 'New question…' }] })}>+ Add question</button>
+        {template.premade && <div className="hint">The template keeps its canonical name — per-game substitutions live on game instances only.</div>}
+      </div>
+      <div className="isect"><div className="hint">Open the template from the catalogue to edit its internal node structure.</div></div>
+    </>
+  );
+}
+
 // Mechanic node type (Game Mechanics node tree) — sensor/physical/task nodes.
 function LibMechPrimitivePanel({ template }) {
   const libDispatch = useLibraryDispatch();
@@ -764,6 +1392,8 @@ export default function Inspector({ selection, onSelect }) {
   const { kind, id } = selection;
   if (kind === 'item' && s.items[id]) body = <ItemPanel item={s.items[id]} />;
   else if (kind === 'fact' && s.facts?.[id]) body = <FactPanel fact={s.facts[id]} />;
+  else if (kind === 'subnode' && s.subnodes?.[id]) body = <SubnodePanel sn={s.subnodes[id]} onSelect={onSelect} />;
+  else if (kind === 'frame' && s.frames?.[id]) body = <FramePanel frame={s.frames[id]} onSelect={onSelect} />;
   else if (kind === 'graphnode') body = <GraphNodePanel scope={selection.scope} id={id} />;
   else if (kind === 'location' && s.locations[id]) body = <LocationPanel location={s.locations[id]} />;
   else if (kind === 'player' && s.players[id]) body = <PlayerPanel player={s.players[id]} />;
@@ -772,15 +1402,18 @@ export default function Inspector({ selection, onSelect }) {
   else if (kind === 'lib-mechanics' && lib.mechanics[id]) body = <LibMechanicPanel template={lib.mechanics[id]} />;
   else if (kind === 'lib-sensors' && lib.sensors[id]) body = <LibSensorPanel template={lib.sensors[id]} />;
   else if (kind === 'lib-stories' && lib.stories[id]) body = <LibStoryPanel template={lib.stories[id]} />;
+  else if (kind === 'lib-concepts' && lib.concepts?.[id]) body = <LibConceptPanel template={lib.concepts[id]} />;
   else if (kind === 'lib-mechPrimitives' && lib.mechPrimitives[id]) body = <LibMechPrimitivePanel template={lib.mechPrimitives[id]} />;
   else if (kind === 'lib-narrative' && lib.narrative[id]) body = <LibNarrativePanel template={lib.narrative[id]} />;
   else if (kind === 'lib-structnode') body = <LibStructNodePanel storyId={selection.storyId} nodeId={id} coll={selection.coll} />;
   else if (kind === 'node') {
     const r = resolveNode(s, lib, id);
     if (!r) body = null;
-    // Narrative-typed nodes always show the node editor (with their branch
-    // conditions and fact changes). Mechanical nodes linked to an item/location
-    // surface that live record instead.
+    // Narrative Weaver: concepts and base nodes get their fixed-order panels;
+    // legacy typed kinds keep the old editor; mechanical nodes linked to an
+    // item/location surface that live record instead.
+    else if (r.node.kind === 'concept') body = <ConceptPanel node={r.node} />;
+    else if (BASE_KINDS.includes(r.node.kind)) body = <BaseNodePanel node={r.node} />;
     else if (NARRATIVE_KINDS.includes(r.node.kind)) body = <NodePanel node={r.node} />;
     else if (r.item) body = <ItemPanel item={r.item} viaNode={r.node} />;
     else if (r.location) body = <LocationPanel location={r.location} viaNode={r.node} />;

@@ -6,10 +6,11 @@ import { storyTrackToStructure } from '../state/bridge.js';
 import { genId } from '../data/csvSchemas.js';
 import { LIB_PREFIX, NARRATIVE_KINDS } from '../data/seed.js';
 
-// Story-side nodes (the macro track) vs. mechanical task nodes (the timeline).
+// Story-side nodes come from the narrative graph (s.nodes); the timeline reads
+// the surface Task flow (s.taskNodes). One story beat aligns to one task.
 const isStory = (n) => NARRATIVE_KINDS.includes(n.kind) || !!n.elementId;
-const KIND_LABEL = { location: 'Location', objective: 'Objective', enemy: 'Enemy', mechanic: 'Mechanic', sensor: 'Sensor' };
 const nodeColor = (n) => n.color || ENTITY_COLORS[n.kind] || '#8B92A6';
+const TASK_COLOR = ENTITY_COLORS.task || '#5BC0BE';
 const pad2 = (v) => String(v).padStart(2, '0');
 const toLabel = (min) => `${pad2(Math.floor(min / 60))}:${pad2(min % 60)}`;
 const parseHM = (s) => { const m = /^(\d{1,2}):(\d{2})$/.exec(s.trim()); return m ? +m[1] * 60 + +m[2] : null; };
@@ -35,7 +36,7 @@ export default function Weaver() {
   const aligns = s.alignments || [];
 
   const storyNodes = Object.values(s.nodes).filter(isStory);
-  const tasks = Object.values(s.nodes).filter((n) => !isStory(n)).sort((a, b) => (a.startMin ?? 9999) - (b.startMin ?? 9999) || a.x - b.x);
+  const tasks = Object.values(s.taskNodes || {}).sort((a, b) => (a.startMin ?? 9999) - (b.startMin ?? 9999) || a.x - b.x);
   const effStart = (t, i) => t.startMin ?? Math.round(win.startMin + ((i + 1) * span) / (tasks.length + 1));
   const effDur = (t) => t.durationMin ?? 45;
 
@@ -96,7 +97,7 @@ export default function Weaver() {
     if (Math.abs(e.clientX - d.startX) > 3) d.moved = true;
     let next = Math.round((d.orig + deltaMin) / 5) * 5;
     next = Math.max(win.startMin, Math.min(win.endMin - d.dur, next));
-    dispatch({ type: 'UPDATE_ENTITY', coll: 'nodes', id: d.id, patch: { startMin: next, durationMin: d.dur } });
+    dispatch({ type: 'GRAPH_UPDATE_NODE', scope: { coll: 'taskNodes' }, id: d.id, patch: { startMin: next, durationMin: d.dur } });
   };
   const onBarUp = (t) => {
     const d = barDrag.current; barDrag.current = null;
@@ -142,7 +143,7 @@ export default function Weaver() {
             const p = anchors[`story:${a.story}`]; const q = anchors[`task:${a.task}`];
             if (!p || !q) return null;
             const mx = (p.x + q.x) / 2;
-            const color = ENTITY_COLORS[s.nodes[a.task]?.kind] || 'var(--brand)';
+            const color = TASK_COLOR;
             return (
               <g key={i}>
                 <path d={`M ${p.x} ${p.y} C ${mx} ${p.y}, ${mx} ${q.y}, ${q.x} ${q.y}`} className="wline" style={{ stroke: color }} />
@@ -193,15 +194,15 @@ export default function Weaver() {
               const linkedToArmed = armed && aligns.some((a) => a.story === armed && a.task === t.id);
               return (
                 <div key={t.id} data-task={t.id} className={`tlbar${linkedToArmed ? ' linked' : ''}${armed ? ' arming' : ''}`}
-                  style={{ left, width, top: headH + 6 + i * rowH, borderLeftColor: ENTITY_COLORS[t.kind] }}
+                  style={{ left, width, top: headH + 6 + i * rowH, borderLeftColor: TASK_COLOR }}
                   onPointerDown={(e) => onBarDown(e, t, i)} onPointerUp={() => onBarUp(t)} title={`${t.title} · ${toLabel(start)}–${toLabel(start + dur)}`}>
-                  <span className="tlkind" style={{ color: ENTITY_COLORS[t.kind] }}>{KIND_LABEL[t.kind] || t.kind}</span>
+                  <span className="tlkind" style={{ color: TASK_COLOR }}>Task</span>
                   <b>{t.title}</b>
                   <span className="tltime mono">{toLabel(start)}–{toLabel(start + dur)}</span>
                 </div>
               );
             })}
-            {tasks.length === 0 && <div className="empty" style={{ padding: 24 }}>No tasks yet — add objective / location / mechanic / sensor nodes on the Narrative &amp; Quests canvas.</div>}
+            {tasks.length === 0 && <div className="empty" style={{ padding: 24 }}>No tasks yet — add tasks in the <b>Tasks</b> section, then align them to story beats here.</div>}
             <div style={{ height: headH + tasks.length * rowH + 20 }} />
           </div>
         </div>

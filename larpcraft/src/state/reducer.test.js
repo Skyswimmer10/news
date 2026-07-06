@@ -127,7 +127,7 @@ describe('scenario graph editing', () => {
     const s = reducer(seed(), { type: 'DELETE_NODE', nodeId: 'N-KEY' });
     expect(s.nodes['N-KEY']).toBeUndefined();
     expect(s.edges.some((e) => e.from === 'N-KEY' || e.to === 'N-KEY')).toBe(false);
-    expect(s.edges.length).toBe(seed().edges.length - 3); // N-KEY had 1 in + 2 out
+    expect(s.edges.length).toBe(seed().edges.length - 2); // N-KEY had 1 in + 1 out
   });
 
   it('UPDATE_EDGE edits a connection label', () => {
@@ -142,16 +142,17 @@ describe('scenario graph editing', () => {
     expect(s.alignments.length).toBe(n);
     s = reducer(s, { type: 'REMOVE_ALIGN', story: 'N-BRIEF', task: 'N-S7' });
     expect(s.alignments.some((a) => a.story === 'N-BRIEF' && a.task === 'N-S7')).toBe(false);
-    // deleting a task node drops alignments referencing it (seed aligns N-END↔N-GATE)
+    // deleting an aligned story node drops alignments referencing it
+    // (seed aligns N-KEY↔TSK-2)
     const before = s.alignments.length;
-    s = reducer(s, { type: 'DELETE_NODE', nodeId: 'N-GATE' });
+    s = reducer(s, { type: 'DELETE_NODE', nodeId: 'N-KEY' });
     expect(s.alignments.length).toBe(before - 1);
-    expect(s.alignments.some((a) => a.task === 'N-GATE')).toBe(false);
+    expect(s.alignments.some((a) => a.story === 'N-KEY')).toBe(false);
   });
 
   it('the demo game ships seeded story↔task alignments', () => {
     const s = seed();
-    expect(s.alignments).toEqual(expect.arrayContaining([{ story: 'N-TWIST', task: 'N-DECRYPT' }]));
+    expect(s.alignments).toEqual(expect.arrayContaining([{ story: 'N-BRIEF', task: 'TSK-1' }]));
   });
 
   it('SET_STORY_POS records a story beat position on the Weaver track', () => {

@@ -1,12 +1,15 @@
 import React, { useState } from 'react';
-import { useLibrary, useLibraryDispatch } from '../state/store.jsx';
+import { useLibrary, useLibraryDispatch, useGame, useDispatch } from '../state/store.jsx';
 import { Thumb, ENTITY_COLORS, PrimIcon } from '../components/bits.jsx';
 import FlowCanvas from '../components/FlowCanvas.jsx';
 import StructureThumb, { structNodeColor } from '../components/StructureThumb.jsx';
 import { narrativeToStructNode, mechPrimitiveToStructNode } from '../state/bridge.js';
-import { LIB_BLANK, LIB_PREFIX } from '../data/seed.js';
+import { LIB_BLANK, LIB_PREFIX, BASE_NODE_TYPES, ADDITIONAL_NODE_TYPES } from '../data/seed.js';
 import { genId } from '../data/csvSchemas.js';
 import TypeChips from '../components/TypeChips.jsx';
+
+// Library catalogue order for Additional Node ("concept") categories.
+const CONCEPT_ORDER = ['storyConcept', 'structureConcept', 'characterConcept', 'functionConcept', 'styleConcept'];
 
 const TABS = [
   { id: 'items', label: 'Items & Gadgets', color: 'var(--c-item)', addLabel: '+ New item template' },
@@ -17,6 +20,7 @@ const TABS = [
   { id: 'sensors', label: 'Sensor hardware', color: 'var(--c-sensor)', addLabel: '+ New sensor type' },
   { id: 'narrative', label: 'Narrative', color: '#F08CB4', addLabel: '+ New narrative element' },
   { id: 'stories', label: 'Story Structures', color: 'var(--c-narrative)', addLabel: '+ New structure' },
+  { id: 'concepts', label: 'Concepts', color: '#E8D25C', addLabel: '+ New concept' },
 ];
 
 // Three top-level groups keep the catalogue uncrowded. Story & Narrative holds
@@ -24,7 +28,7 @@ const TABS = [
 const GROUP_META = {
   physical: { label: 'Physical', tabs: ['items', 'locations', 'sensors'] },
   mechanics: { label: 'Game Mechanics', tabs: ['mechPrimitives', 'mechStructures'] },
-  story: { label: 'Story & Narrative', tabs: ['narrative', 'stories'] },
+  story: { label: 'Story & Narrative', tabs: ['concepts', 'narrative', 'stories'] },
 };
 
 // The two structure kinds share one editor: same canvas, different node pool.
@@ -43,6 +47,125 @@ function PaletteNode({ n, onSelect }) {
       onClick={onSelect} title={`${n.body || ''} (drag onto the canvas)`}>
       <PrimIcon icon={n.icon} color={n.color} />
       <div><b>{n.name}</b>{n.category && <small>{n.category}</small>}</div>
+    </div>
+  );
+}
+
+// Preview (opened from the library): a live but non-editable mini mind-map of
+// the internal structure plus example filled answers, with Add to Canvas.
+function ConceptPreview({ concept, onClose }) {
+  const lib = useLibrary();
+  const proj = useGame();
+  const dispatch = useDispatch();
+  const meta = ADDITIONAL_NODE_TYPES[concept.category] || { label: 'Concept', color: '#E8D25C' };
+  const addToCanvas = () => {
+    const id = genId(proj.nodes, `${proj.meta.prefix}-N-`);
+    dispatch({
+      type: 'ADD_NODE',
+      node: {
+        id, kind: 'concept', conceptKind: concept.category, conceptId: concept.id,
+        title: concept.name, x: 90, y: 90, body: concept.description, color: null,
+        teamId: null, sets: [], collapsed: true, conceptAnswers: {}, history: [],
+        sub: JSON.parse(JSON.stringify({ nodes: concept.nodes || {}, edges: concept.edges || [] })),
+      },
+    });
+    onClose(true);
+  };
+  return (
+    <div className="modal-backdrop" onClick={() => onClose(false)}>
+      <div className="modal wide" onClick={(e) => e.stopPropagation()}>
+        <div className="modalhead">
+          <b>{concept.name}</b>
+          <span className="cptbadge" style={{ color: meta.color, borderColor: meta.color }}>{meta.label}</span>
+          <button className="x big" onClick={() => onClose(false)} aria-label="Close">×</button>
+        </div>
+        <div className="previewbody">
+          <div className="previewmap">
+            {Object.keys(concept.nodes || {}).length > 0
+              ? <StructureThumb structure={concept} lib={lib} width={430} height={200} />
+              : <div className="empty">Empty — build inside after adding, or open the editor.</div>}
+            <div className="hint" style={{ marginTop: 6 }}>Live mini-map of the internal structure (read-only).</div>
+          </div>
+          <div className="previewinfo">
+            <p className="dim">{concept.description || 'No description yet.'}</p>
+            {(concept.questions || []).length > 0 && (
+              <div className="previewqa">
+                {concept.questions.map((q) => (
+                  <div className="qa" key={q.key}>
+                    <small>{q.label}</small>
+                    <b>{concept.example?.[q.key] || '—'}</b>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+        <div className="modalfoot">
+          <button className="btn primary" onClick={addToCanvas}>Add to Canvas (collapsed)</button>
+          <button className="btn" onClick={() => onClose(false)}>Close</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Dedicated editing viewport for a concept template's internal structure —
+// same canvas engine, base-node palette. Edits update the master template.
+function ConceptEditor({ concept, selection, onSelect, onBack }) {
+  const libDispatch = useLibraryDispatch();
+  const patch = (p) => libDispatch({ type: 'UPDATE_ENTITY', coll: 'concepts', id: concept.id, patch: p });
+  const selId = selection?.kind === 'lib-structnode' && selection.storyId === concept.id ? selection.id : null;
+  const colorOf = (n) => n.color || BASE_NODE_TYPES[n.kind]?.color || '#8B92A6';
+  const meta = ADDITIONAL_NODE_TYPES[concept.category] || { label: 'Concept' };
+  const addBase = (kind) => {
+    const id = genId(concept.nodes, 'S');
+    const node = { id, kind, title: `New ${BASE_NODE_TYPES[kind].label.toLowerCase()}`, x: 80 + Math.round(Math.random() * 140), y: 70 + Math.round(Math.random() * 120), body: '', color: null };
+    patch({ nodes: { ...concept.nodes, [id]: node } });
+    onSelect({ kind: 'lib-structnode', id, storyId: concept.id, coll: 'concepts' });
+  };
+  return (
+    <div className="main">
+      <div className="mhead">
+        <div>
+          <div className="crumb"><button className="linkbtn" onClick={onBack}>← Concepts</button></div>
+          <h2>{concept.name} <span className="libbadge inline">master template · {meta.label}</span></h2>
+        </div>
+        <div className="right"><span className="mono dim">{Object.keys(concept.nodes).length} nodes · {concept.edges.length} links</span></div>
+      </div>
+      <div className="toolrow">
+        <span className="dim addlab">Add:</span>
+        {Object.values(BASE_NODE_TYPES).map((t) => (
+          <button key={t.id} className="addnode" title={t.blurb} onClick={() => addBase(t.id)}>
+            <span className="sq" style={{ background: t.color }}><PrimIcon icon={t.icon} color="#fff" size={11} /></span>{t.label}
+          </button>
+        ))}
+      </div>
+      <FlowCanvas
+        nodes={concept.nodes} edges={concept.edges} selId={selId} colorOf={colorOf}
+        iconOf={(n) => BASE_NODE_TYPES[n.kind]?.icon || null}
+        onSelect={(id) => onSelect({ kind: 'lib-structnode', id, storyId: concept.id, coll: 'concepts' })}
+        onMove={(id, x, y) => patch({ nodes: { ...concept.nodes, [id]: { ...concept.nodes[id], x, y } } })}
+        onConnect={(from, to) => {
+          if (concept.edges.some((e) => e.from === from && e.to === to)) return;
+          patch({ edges: [...concept.edges, { from, to, label: '', color: null }] });
+        }}
+        onRemoveEdge={(e) => patch({ edges: concept.edges.filter((x) => !(x.from === e.from && x.to === e.to)) })}
+        onSetColor={(id, color) => patch({ nodes: { ...concept.nodes, [id]: { ...concept.nodes[id], color } } })}
+        onDeleteNode={(id) => {
+          const nodes = { ...concept.nodes };
+          delete nodes[id];
+          patch({ nodes, edges: concept.edges.filter((e) => e.from !== id && e.to !== id) });
+          onSelect(null);
+        }}
+        onEditEdge={(e, label) => patch({ edges: concept.edges.map((x) => (x.from === e.from && x.to === e.to ? { ...x, label } : x)) })}
+        onPasteNode={(p) => {
+          const id = genId(concept.nodes, 'S');
+          patch({ nodes: { ...concept.nodes, [id]: { id, kind: p.kind, title: p.title, x: p.x, y: p.y, body: p.body, color: p.color ?? null } } });
+        }}
+      />
+      <div className="statusbar">
+        <span>Editing the <b>master template</b> — every game that adds it later gets this structure · rename / describe it from the inspector.</span>
+      </div>
     </div>
   );
 }
@@ -118,9 +241,12 @@ function StructureEditor({ coll, structure, selection, onSelect, onBack }) {
 export default function Library({ group = 'physical', selection, onSelect }) {
   const lib = useLibrary();
   const libDispatch = useLibraryDispatch();
+  const proj = useGame();
+  const projDispatch = useDispatch();
   const groupMeta = GROUP_META[group] ?? GROUP_META.physical;
   const [tab, setTab] = useState(groupMeta.tabs[0]);
   const [editing, setEditing] = useState(null); // { coll, id } for a structure being edited
+  const [preview, setPreview] = useState(null); // concept id being previewed
   const [narrFilter, setNarrFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
   const selId = selection?.kind?.startsWith('lib-') ? selection.id : null;
@@ -141,7 +267,17 @@ export default function Library({ group = 'physical', selection, onSelect }) {
     }
     libDispatch({ type: 'ADD_ENTITY', coll: tab, entity });
     pick(tab, id);
-    if (tab === 'stories' || tab === 'mechStructures') setEditing({ coll: tab, id });
+    if (tab === 'stories' || tab === 'mechStructures' || tab === 'concepts') setEditing({ coll: tab, id });
+  };
+
+  // "Create new …" inside a specific concept category: starts completely
+  // empty; the designer builds inside, renames, and it becomes reusable.
+  const addConcept = (category) => {
+    const id = genId(lib.concepts, LIB_PREFIX.concepts);
+    const entity = { ...LIB_BLANK.concepts(id), category, name: `New ${ADDITIONAL_NODE_TYPES[category]?.label.toLowerCase() ?? 'concept'}` };
+    libDispatch({ type: 'ADD_ENTITY', coll: 'concepts', entity });
+    pick('concepts', id);
+    setEditing({ coll: 'concepts', id });
   };
   const activeTab = TABS.find((t) => t.id === tab) ?? TABS[0];
 
@@ -170,6 +306,10 @@ export default function Library({ group = 'physical', selection, onSelect }) {
   };
 
   if (editing && lib[editing.coll]?.[editing.id]) {
+    if (editing.coll === 'concepts') {
+      return <ConceptEditor concept={lib.concepts[editing.id]} selection={selection} onSelect={onSelect}
+        onBack={() => { setEditing(null); setTab('concepts'); }} />;
+    }
     return <StructureEditor coll={editing.coll} structure={lib[editing.coll][editing.id]} selection={selection} onSelect={onSelect}
       onBack={() => { setEditing(null); setTab(editing.coll); }} />;
   }
@@ -297,6 +437,67 @@ export default function Library({ group = 'physical', selection, onSelect }) {
             )}
           </div>
         </div>
+      )}
+
+      {tab === 'concepts' && (
+        <div className="cptcatalogue">
+          {/* Base Nodes — the minimum independent building blocks. */}
+          <div className="cptsection">
+            <div className="cptsectionhead">Base Nodes</div>
+            <div className="cptgrid">
+              {Object.values(BASE_NODE_TYPES).map((t) => (
+                <div key={t.id} className="cptcard base" style={{ borderTopColor: t.color }}>
+                  <div className="primhead">
+                    <span className="primic" style={{ background: t.color }}><PrimIcon icon={t.icon} color="#fff" /></span>
+                    <b>{t.label}</b>
+                  </div>
+                  <small>{t.blurb}</small>
+                  <div className="structmeta">
+                    <button className="btn" onClick={() => {
+                      const id = genId(proj.nodes, `${proj.meta.prefix}-N-`);
+                      projDispatch({ type: 'ADD_NODE', node: { id, kind: t.id, title: `New ${t.label.toLowerCase()}`, x: 90, y: 90, body: '', color: null, teamId: null, sets: [], locationId: null, itemId: null, mechanicIds: [], sensorIds: [], history: [] } });
+                    }}>Add to Canvas</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+          {/* Additional Node categories, in the locked order. */}
+          {CONCEPT_ORDER.map((cat) => {
+            const meta = ADDITIONAL_NODE_TYPES[cat];
+            const inCat = Object.values(lib.concepts ?? {}).filter((c) => c.category === cat);
+            return (
+              <div className="cptsection" key={cat}>
+                <div className="cptsectionhead" style={{ color: meta.color }}>
+                  <PrimIcon icon={meta.icon} color={meta.color} size={13} /> {meta.label}s
+                </div>
+                <div className="cptgrid">
+                  <button className="cptcard create" onClick={() => addConcept(cat)}>
+                    <b>+ Create new {meta.label.toLowerCase()}…</b>
+                    <small>Starts completely empty — build inside, rename, save. It becomes a reusable template.</small>
+                  </button>
+                  {inCat.map((c) => (
+                    <button key={c.id} className={`cptcard${selId === c.id ? ' sel' : ''}`} style={{ borderTopColor: meta.color }}
+                      onClick={() => { pick('concepts', c.id); setPreview(c.id); }}>
+                      <div className="primhead">
+                        <span className="primic" style={{ background: meta.color }}><PrimIcon icon={meta.icon} color="#fff" /></span>
+                        <b>{c.name}</b>
+                        {c.premade && <span className="cptbadge premade">pre-made</span>}
+                      </div>
+                      <StructureThumb structure={c} lib={lib} width={216} height={70} />
+                      <small>{c.description}</small>
+                      <div className="primmeta dim mono">{Object.keys(c.nodes).length} nodes · {c.id}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {tab === 'concepts' && preview && lib.concepts?.[preview] && (
+        <ConceptPreview concept={lib.concepts[preview]} onClose={() => setPreview(null)} />
       )}
 
       {(tab === 'stories' || tab === 'mechStructures') && (

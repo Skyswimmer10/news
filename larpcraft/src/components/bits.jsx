@@ -11,6 +11,8 @@ export const ENTITY_COLORS = {
   beat: '#5CA8F5', reveal: '#F08CB4', branch: '#E0A23C', fact: '#3EC6D6', converge: '#A87BF0', timed: '#E8D25C', recovery: '#E86464',
   // Tasks + task-detail node types.
   task: '#5BC0BE', placement: '#43BF87', rule: '#E0A23C', prop: '#3EC6D6', power: '#A87BF0', effect: '#F08CB4',
+  // Narrative Weaver base nodes + concept containers.
+  event: '#5CA8F5', character: '#E0A23C', storyLocation: '#43BF87', quest: '#A87BF0', concept: '#E8D25C',
 };
 
 export const AVAILABILITY = {
@@ -51,6 +53,12 @@ const PRIM_PATHS = {
   cross: <path d="M5 5l14 14M19 5L5 19" />,
   alert: <><path d="M12 3l10 18H2L12 3z" /><path d="M12 10v5M12 18.4v.3" /></>,
   clock: <><circle cx="12" cy="12" r="8" /><path d="M12 8v4l3 2" /></>,
+  user: <><circle cx="12" cy="8" r="3.4" /><path d="M5 20c1.2-3.6 4-5.4 7-5.4s5.8 1.8 7 5.4" /></>,
+  box: <><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3z" /><path d="M12 12l8-4.5M12 12L4 7.5M12 12v9" /></>,
+  target: <><circle cx="12" cy="12" r="8" /><circle cx="12" cy="12" r="3.5" /></>,
+  book: <><path d="M4 5.5A2.5 2.5 0 016.5 3H20v15H6.5A2.5 2.5 0 004 20.5v-15z" /><path d="M4 20.5A2.5 2.5 0 016.5 18H20" /></>,
+  layers: <><path d="M12 3l9 5-9 5-9-5 9-5z" /><path d="M3 13l9 5 9-5" /></>,
+  heart: <path d="M12 20s-7-4.6-7-9.3C5 7.6 7 5.7 9.4 5.7c1.2 0 2.3.8 2.6 1.8.3-1 1.4-1.8 2.6-1.8C17 5.7 19 7.6 19 10.7c0 4.7-7 9.3-7 9.3z" />,
 };
 
 export function PrimIcon({ icon, color, size = 15 }) {

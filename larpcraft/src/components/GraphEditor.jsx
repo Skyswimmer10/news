@@ -5,7 +5,8 @@ import { ENTITY_COLORS, PrimIcon } from './bits.jsx';
 import FlowCanvas from './FlowCanvas.jsx';
 import { genId } from '../data/csvSchemas.js';
 
-const sameScope = (a, b) => a && b && a.coll === b.coll && (a.parentId ?? null) === (b.parentId ?? null);
+const scopeKey = (s) => `${s.coll}:${(s.parentPath ?? (s.parentId ? [s.parentId] : [])).join('/')}`;
+const sameScope = (a, b) => a && b && scopeKey(a) === scopeKey(b);
 
 // A self-contained node canvas bound to one located graph (a surface task flow
 // or any node's nested `.sub`). All edits flow through the generic GRAPH_*

@@ -12,6 +12,10 @@ export const KIND_LABEL = {
   beat: 'Beat', reveal: 'Reveal', branch: 'Branch', fact: 'Fact change', converge: 'Convergence', timed: 'Timed event', recovery: 'Recovery',
   // Tasks + task-detail node types.
   task: 'Task', placement: 'Placement', rule: 'Rule', prop: 'Prop / kit', power: 'Power', effect: 'Effect',
+  // Narrative Weaver: base nodes, concept containers, subnodes.
+  event: 'Event', character: 'Character', storyLocation: 'Story Location', quest: 'Quest', concept: 'Concept',
+  outcomeBranches: 'Outcome Branches', relChange: 'Rel. / Status Change', internalState: 'Internal State',
+  locationArchetype: 'Location Archetype', narrativeResponse: 'Narrative Response', emotionalTone: 'Emotional Tone',
 };
 const SWATCHES = ['#5CA8F5', '#43BF87', '#E0A23C', '#E86464', '#A87BF0', '#3EC6D6', '#E8D25C', '#F08CB4'];
 
@@ -31,9 +35,18 @@ export default function FlowCanvas({
   iconOf, teamOf, dimNode, edgeFact,
   // onOpenNode(id): double-click a node to drill into its nested sub-graph.
   onOpenNode,
+  // nodeClass(node) → extra class names ('subnode', 'concept', …).
+  nodeClass,
+  // attachments: [{ from, to, label?, color? }] — subnode→parent links drawn
+  // as dashed lines with a one-click detach (⊘) at the midpoint.
+  attachments, onDetach,
+  // frames: visual grouping rectangles. Dragging the header moves the frame
+  // and everything inside (host reducer handles containment).
+  frames, onFrameMove, onFrameResize, onFrameSelect, selFrame,
 }) {
   const canvasRef = useRef(null);
   const dragRef = useRef(null);
+  const frameRef = useRef(null);
   const [linkDrag, setLinkDrag] = useState(null);
   const [pickerFor, setPickerFor] = useState(null);
 
@@ -121,6 +134,28 @@ export default function FlowCanvas({
     setLinkDrag(null);
   };
 
+  // Frame drag (header) and resize (corner handle).
+  const onFrameDown = (e, f, mode) => {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    const p = canvasPoint(e);
+    frameRef.current = { id: f.id, mode, lastX: p.x, lastY: p.y };
+    e.currentTarget.setPointerCapture(e.pointerId);
+    onFrameSelect?.(f.id);
+  };
+  const onFramePtrMove = (e) => {
+    const d = frameRef.current;
+    if (!d) return;
+    const p = canvasPoint(e);
+    const dx = Math.round(p.x - d.lastX), dy = Math.round(p.y - d.lastY);
+    if (dx === 0 && dy === 0) return;
+    d.lastX = p.x; d.lastY = p.y;
+    const f = frames[d.id];
+    if (d.mode === 'move') onFrameMove?.(d.id, dx, dy);
+    else onFrameResize?.(d.id, Math.max(160, f.w + dx), Math.max(100, f.h + dy));
+  };
+  const onFramePtrUp = () => { frameRef.current = null; };
+
   return (
     <div
       className="canvas" ref={canvasRef}
@@ -133,7 +168,37 @@ export default function FlowCanvas({
         onDropPalette(payload, Math.max(8, p.x - NODE_W / 2), Math.max(8, p.y - 20));
       } : undefined}
     >
+      {frames && Object.values(frames).map((f) => (
+        <div key={f.id} className={`gframe${selFrame === f.id ? ' sel' : ''}`}
+          style={{ left: f.x, top: f.y, width: f.w, height: f.h, borderColor: f.color || 'var(--line)' }}>
+          <div className="gframehead" style={{ background: f.color || 'var(--raised)' }}
+            onPointerDown={(e) => onFrameDown(e, f, 'move')} onPointerMove={onFramePtrMove} onPointerUp={onFramePtrUp}
+            title="Drag to move the frame and everything inside it">
+            {f.label || 'Frame'}
+          </div>
+          <div className="gframegrip" title="Drag to resize"
+            onPointerDown={(e) => onFrameDown(e, f, 'resize')} onPointerMove={onFramePtrMove} onPointerUp={onFramePtrUp} />
+        </div>
+      ))}
       <svg className="edges" width={extentX} height={extentY}>
+        {(attachments || []).map((a, idx) => {
+          const from = nodes[a.from], to = nodes[a.to];
+          if (!from || !to) return null;
+          const x1 = from.x + NODE_W / 2, y1 = from.y + 30, x2 = to.x + NODE_W / 2, y2 = to.y + 34;
+          const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+          const color = a.color || '#F08CB4';
+          return (
+            <g key={`att${idx}`}>
+              <path d={`M ${x1} ${y1} L ${x2} ${y2}`} stroke={color} strokeWidth="1.6" strokeDasharray="4 4" fill="none" opacity=".75" />
+              <foreignObject x={mx - 55} y={my - 12} width="110" height="24">
+                <div className="attlab" style={{ borderColor: color, color }}>
+                  <span>{a.label || 'enriches'}</span>
+                  {onDetach && <button className="x" title="Detach subnode" onClick={() => onDetach(a.from)}>⊘</button>}
+                </div>
+              </foreignObject>
+            </g>
+          );
+        })}
         {edges.map((e, idx) => {
           const from = nodes[e.from], to = nodes[e.to];
           if (!from || !to) return null;
@@ -176,7 +241,7 @@ export default function FlowCanvas({
         return (
           <div
             key={n.id} data-node={n.id} role="button" tabIndex={0}
-            className={`node${selId === n.id ? ' sel' : ''}${linkDrag && linkDrag.from !== n.id ? ' droppable' : ''}${dimNode?.(n) ? ' dim' : ''}`}
+            className={`node${selId === n.id ? ' sel' : ''}${linkDrag && linkDrag.from !== n.id ? ' droppable' : ''}${dimNode?.(n) ? ' dim' : ''}${nodeClass ? ` ${nodeClass(n) || ''}` : ''}`}
             style={{ left: n.x, top: n.y, width: NODE_W, borderTopColor: color }}
             onPointerDown={(e) => onNodeDown(e, n)}
             onPointerMove={onNodeMove}

@@ -4,25 +4,50 @@
 
 // ---- located graphs (for hierarchical / nested node editing) ----
 // A `scope` addresses one editable {nodes, edges} graph in the project:
-//   { coll:'nodes' }                      → the Narrative & Quests graph
-//   { coll:'taskNodes' }                  → the surface Task flow
-//   { coll:'nodes'|'taskNodes', parentId } → that parent node's nested `.sub`
+//   { coll:'nodes' }                        → the narrative graph
+//   { coll:'taskNodes' }                    → the surface Task flow
+//   { coll, parentId }                      → that parent node's nested `.sub`
+//   { coll, parentPath:[id0,id1,…] }        → deeper nesting (≤ 3 levels)
 const topKeys = (coll) => (coll === 'taskNodes' ? { nk: 'taskNodes', ek: 'taskEdges' } : { nk: 'nodes', ek: 'edges' });
+const scopePath = (scope) => scope.parentPath ?? (scope.parentId ? [scope.parentId] : []);
 
 export function locateGraph(state, scope) {
-  const { coll, parentId } = scope;
-  const { nk, ek } = topKeys(coll);
-  if (!parentId) return { nodes: state[nk] || {}, edges: state[ek] || [] };
-  const parent = (state[nk] || {})[parentId];
-  const sub = parent?.sub || { nodes: {}, edges: [] };
-  return { nodes: sub.nodes || {}, edges: sub.edges || [] };
+  const { nk, ek } = topKeys(scope.coll);
+  let nodes = state[nk] || {};
+  let edges = state[ek] || [];
+  for (const pid of scopePath(scope)) {
+    const sub = nodes[pid]?.sub || { nodes: {}, edges: [] };
+    nodes = sub.nodes || {};
+    edges = sub.edges || [];
+  }
+  return { nodes, edges };
 }
 function writeGraph(state, scope, next) {
-  const { coll, parentId } = scope;
-  const { nk, ek } = topKeys(coll);
-  if (!parentId) return { ...state, [nk]: next.nodes, [ek]: next.edges };
-  const parent = state[nk][parentId];
-  return { ...state, [nk]: { ...state[nk], [parentId]: { ...parent, sub: { nodes: next.nodes, edges: next.edges } } } };
+  const { nk, ek } = topKeys(scope.coll);
+  const path = scopePath(scope);
+  if (path.length === 0) return { ...state, [nk]: next.nodes, [ek]: next.edges };
+  // Rebuild the chain of parents immutably from the top down.
+  const rebuild = (nodes, depth) => {
+    const pid = path[depth];
+    const parent = nodes[pid];
+    if (!parent) return nodes;
+    const sub = parent.sub || { nodes: {}, edges: [] };
+    const inner = depth === path.length - 1
+      ? { nodes: next.nodes, edges: next.edges }
+      : { nodes: rebuild(sub.nodes || {}, depth + 1), edges: sub.edges || [] };
+    return { ...nodes, [pid]: { ...parent, sub: inner } };
+  };
+  return { ...state, [nk]: rebuild(state[nk], 0) };
+}
+
+// Append a change-history entry (skips pure position/history writes) so every
+// node and subnode carries its own audit trail, capped at 20 entries.
+const HISTORY_SKIP = new Set(['x', 'y', 'history', 'sub', 'collapsed']);
+function withHistory(entity, patch) {
+  const fields = Object.keys(patch).filter((k) => !HISTORY_SKIP.has(k));
+  if (fields.length === 0) return { ...entity, ...patch };
+  const history = [...(entity.history || []), { t: Date.now(), fields }].slice(-20);
+  return { ...entity, ...patch, history };
 }
 
 export function reducer(state, action) {
@@ -31,11 +56,13 @@ export function reducer(state, action) {
       return action.seed;
 
     // Generic field edit from the inspector: { coll:'items', id, patch:{name:'…'} }
+    // Narrative nodes and subnodes also log a change-history entry.
     case 'UPDATE_ENTITY': {
       const { coll, id, patch } = action;
       const entity = state[coll][id];
       if (!entity) return state;
-      return { ...state, [coll]: { ...state[coll], [id]: { ...entity, ...patch } } };
+      const next = (coll === 'nodes' || coll === 'subnodes') ? withHistory(entity, patch) : { ...entity, ...patch };
+      return { ...state, [coll]: { ...state[coll], [id]: next } };
     }
 
     // Issue a physical item to a player. Availability flips to 'in-use'
@@ -154,16 +181,36 @@ export function reducer(state, action) {
     }
 
     // Delete a node and every connection (and Weaver alignment) touching it.
+    // Subnodes attached to it are detached (set floating), never destroyed.
     case 'DELETE_NODE': {
       const { nodeId } = action;
       if (!state.nodes[nodeId]) return state;
       const nodes = { ...state.nodes };
       delete nodes[nodeId];
+      const subnodes = Object.fromEntries(Object.entries(state.subnodes || {}).map(([id, sn]) =>
+        [id, sn.parentRef?.nodeId === nodeId ? { ...sn, parentRef: null } : sn]));
       return {
-        ...state, nodes,
+        ...state, nodes, subnodes,
         edges: state.edges.filter((e) => e.from !== nodeId && e.to !== nodeId),
         alignments: (state.alignments || []).filter((a) => a.story !== nodeId && a.task !== nodeId),
       };
+    }
+
+    // Delete a subnode: cascades to its child subnodes and removes any canvas
+    // connections that start or end on the deleted subnodes.
+    case 'DELETE_SUBNODE': {
+      const { subnodeId } = action;
+      if (!state.subnodes?.[subnodeId]) return state;
+      const doomed = new Set([subnodeId]);
+      let grew = true;
+      while (grew) {
+        grew = false;
+        for (const sn of Object.values(state.subnodes)) {
+          if (!doomed.has(sn.id) && sn.parentRef?.subnodeId && doomed.has(sn.parentRef.subnodeId)) { doomed.add(sn.id); grew = true; }
+        }
+      }
+      const subnodes = Object.fromEntries(Object.entries(state.subnodes).filter(([id]) => !doomed.has(id)));
+      return { ...state, subnodes, edges: state.edges.filter((e) => !doomed.has(e.from) && !doomed.has(e.to)) };
     }
 
     // Weaver: position of a story beat on the left story-track canvas
@@ -195,12 +242,94 @@ export function reducer(state, action) {
       return { ...state, nodes: { ...state.nodes, [n.id]: n } };
     }
 
-    // Connect two nodes. Ignores self-loops and duplicate connections.
+    // Connect two nodes (or subnodes — e.g. an Outcome branch merging into a
+    // later node). Ignores self-loops and duplicate connections.
     case 'ADD_EDGE': {
       const { from, to, label = '', color = null } = action;
-      if (from === to || !state.nodes[from] || !state.nodes[to]) return state;
+      const exists = (id) => state.nodes[id] || state.subnodes?.[id];
+      if (from === to || !exists(from) || !exists(to)) return state;
       if (state.edges.some((e) => e.from === from && e.to === to)) return state;
       return { ...state, edges: [...state.edges, { from, to, label, color }] };
+    }
+
+    // ---- frames: purely visual grouping; moving a frame carries members ----
+    // Members are recomputed by containment on every step: nodes/subnodes
+    // whose top-left sits inside the frame, and frames fully inside it.
+    case 'FRAME_MOVE': {
+      const { frameId, dx, dy } = action;
+      const fr = state.frames?.[frameId];
+      if (!fr) return state;
+      const inside = (x, y) => x >= fr.x && x <= fr.x + fr.w && y >= fr.y && y <= fr.y + fr.h;
+      const shift = (coll) => Object.fromEntries(Object.entries(coll).map(([id, n]) =>
+        [id, inside(n.x, n.y) ? { ...n, x: n.x + dx, y: n.y + dy } : n]));
+      const frames = Object.fromEntries(Object.entries(state.frames).map(([id, f]) => {
+        if (id === frameId) return [id, { ...f, x: f.x + dx, y: f.y + dy }];
+        return [id, inside(f.x, f.y) && inside(f.x + f.w, f.y + f.h) ? { ...f, x: f.x + dx, y: f.y + dy } : f];
+      }));
+      return { ...state, frames, nodes: shift(state.nodes), subnodes: shift(state.subnodes || {}) };
+    }
+
+    // Convert a Frame into a Composite (concept node): member nodes move into
+    // the new node's sub-graph; interior edges follow; edges crossing the
+    // boundary re-point to the composite. The frame itself disappears.
+    case 'FRAME_TO_COMPOSITE': {
+      const { frameId, nodeId } = action;
+      const fr = state.frames?.[frameId];
+      if (!fr || !nodeId || state.nodes[nodeId]) return state;
+      const inside = (n) => n.x >= fr.x && n.x <= fr.x + fr.w && n.y >= fr.y && n.y <= fr.y + fr.h;
+      const memberIds = new Set(Object.values(state.nodes).filter(inside).map((n) => n.id));
+      if (memberIds.size === 0) return state;
+      const subNodes = {};
+      for (const id of memberIds) {
+        const n = state.nodes[id];
+        subNodes[id] = { ...n, x: n.x - fr.x + 20, y: n.y - fr.y + 20 };
+      }
+      const subEdges = state.edges.filter((e) => memberIds.has(e.from) && memberIds.has(e.to));
+      const edges = state.edges
+        .filter((e) => !(memberIds.has(e.from) && memberIds.has(e.to)))
+        .map((e) => ({
+          ...e,
+          from: memberIds.has(e.from) ? nodeId : e.from,
+          to: memberIds.has(e.to) ? nodeId : e.to,
+        }))
+        .filter((e) => e.from !== e.to);
+      const nodes = Object.fromEntries(Object.entries(state.nodes).filter(([id]) => !memberIds.has(id)));
+      nodes[nodeId] = {
+        id: nodeId, kind: 'concept', conceptKind: 'structureConcept', conceptId: null,
+        title: fr.label || 'Composite', x: fr.x, y: fr.y, body: '', color: fr.color ?? null,
+        teamId: null, sets: [], collapsed: true, conceptAnswers: {},
+        sub: { nodes: subNodes, edges: subEdges },
+      };
+      const frames = { ...state.frames };
+      delete frames[frameId];
+      const subnodes = Object.fromEntries(Object.entries(state.subnodes || {}).map(([id, sn]) =>
+        [id, sn.parentRef?.nodeId && memberIds.has(sn.parentRef.nodeId) ? { ...sn, parentRef: { nodeId } } : sn]));
+      return { ...state, nodes, edges, frames, subnodes };
+    }
+
+    // Convert a Composite (concept node) back into a Frame: its sub-graph
+    // spills onto the canvas grouped under a new frame; the node disappears.
+    case 'COMPOSITE_TO_FRAME': {
+      const { nodeId, frameId } = action;
+      const n = state.nodes[nodeId];
+      if (!n?.sub || !frameId || state.frames?.[frameId]) return state;
+      const inner = Object.values(n.sub.nodes || {});
+      if (inner.length === 0) return state;
+      const nodes = { ...state.nodes };
+      delete nodes[nodeId];
+      const remap = {};
+      for (const m of inner) {
+        let id = m.id;
+        while (nodes[id]) id = `${id}X`; // avoid collisions with canvas ids
+        remap[m.id] = id;
+        nodes[id] = { ...m, id, x: n.x + m.x - 20 + 0, y: n.y + m.y - 20 + 34 };
+      }
+      const maxX = Math.max(...inner.map((m) => m.x)) + 260;
+      const maxY = Math.max(...inner.map((m) => m.y)) + 140;
+      const frames = { ...(state.frames || {}), [frameId]: { id: frameId, label: n.title, x: n.x, y: n.y, w: maxX, h: maxY + 34, color: n.color ?? null } };
+      const innerEdges = (n.sub.edges || []).map((e) => ({ ...e, from: remap[e.from], to: remap[e.to] }));
+      const edges = [...state.edges.filter((e) => e.from !== nodeId && e.to !== nodeId), ...innerEdges];
+      return { ...state, nodes, edges, frames };
     }
 
     case 'REMOVE_EDGE': {
@@ -226,7 +355,12 @@ export function reducer(state, action) {
       if (!g.nodes[id]) return state;
       const nodes = { ...g.nodes };
       delete nodes[id];
-      return writeGraph(state, scope, { nodes, edges: g.edges.filter((e) => e.from !== id && e.to !== id) });
+      const next = writeGraph(state, scope, { nodes, edges: g.edges.filter((e) => e.from !== id && e.to !== id) });
+      // Deleting a top-level task also clears its Weaver alignments.
+      if (scope.coll === 'taskNodes' && !scopePath(scope).length) {
+        next.alignments = (next.alignments || []).filter((a) => a.task !== id);
+      }
+      return next;
     }
     case 'GRAPH_ADD_EDGE': {
       const { scope, from, to, label = '', color = null } = action;

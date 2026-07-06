@@ -13,7 +13,7 @@ import FactsView from './views/FactsView.jsx';
 import TasksView from './views/TasksView.jsx';
 
 const BUILD_VIEWS = [
-  { id: 'flow', label: 'Narrative & Quests', color: 'var(--c-narrative)', comp: ScenarioFlow, count: (p) => Object.keys(p.nodes).length },
+  { id: 'flow', label: 'Narrative Weaver', color: 'var(--c-narrative)', comp: ScenarioFlow, count: (p) => Object.keys(p.nodes).length },
   { id: 'tasks', label: 'Tasks', color: 'var(--c-mechanic)', comp: TasksView, count: (p) => Object.keys(p.taskNodes ?? {}).length },
   { id: 'weaver', label: 'Weaver', color: 'var(--c-sensor)', comp: Weaver, count: (p) => (p.alignments ?? []).length },
   { id: 'locations', label: 'Locations', color: 'var(--c-location)', comp: Locations, count: (p) => Object.keys(p.locations).length },
@@ -28,7 +28,7 @@ const MANAGE_VIEWS = [
 const LIB_GROUPS = [
   { id: 'physical', label: 'Physical', color: 'var(--c-item)', colls: ['items', 'locations', 'sensors'] },
   { id: 'mechanics', label: 'Game Mechanics', color: 'var(--c-mechanic)', colls: ['mechPrimitives', 'mechStructures'] },
-  { id: 'story', label: 'Story & Narrative', color: 'var(--c-narrative)', colls: ['narrative', 'stories'] },
+  { id: 'story', label: 'Story & Narrative', color: 'var(--c-narrative)', colls: ['concepts', 'narrative', 'stories'] },
 ];
 
 function Shell() {
