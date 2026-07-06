@@ -83,6 +83,21 @@ export const FACT_KINDS = {
 };
 export const FACT_BLANK = (id) => ({ id, name: 'New fact', kind: 'knowledge', detail: '', sensorId: null });
 
+// ---------------------------------------------------------------------------
+// TASKS — a hierarchical node system. The surface graph tracks tasks (linear or
+// branching: task 1 → task 2 → task 3 / task 4 …). Double-clicking a task opens
+// its own nested detail graph, built from these typed detail nodes: where to
+// stand, how many tries, props, powers, effects. Two levels deep.
+// ---------------------------------------------------------------------------
+export const TASK_DETAIL_TYPES = {
+  placement: { id: 'placement', label: 'Placement', color: '#43BF87', icon: 'pin', blurb: 'Where players and props stand or go.' },
+  rule: { id: 'rule', label: 'Rule', color: '#E0A23C', icon: 'cog', blurb: 'How it works — tries, sizes, timings, win / lose.' },
+  prop: { id: 'prop', label: 'Prop / kit', color: '#3EC6D6', icon: 'swap', blurb: 'The physical equipment this task needs.' },
+  power: { id: 'power', label: 'Power', color: '#A87BF0', icon: 'zap', blurb: 'A special ability a team may use here.' },
+  effect: { id: 'effect', label: 'Effect', color: '#F08CB4', icon: 'alert', blurb: 'Lights, sound, or staged special effects.' },
+};
+export const TASK_DETAIL_KINDS = Object.keys(TASK_DETAIL_TYPES);
+
 // Blank factories for the Library's "+ New …" buttons and id prefixes.
 export const LIB_PREFIX = {
   items: 'LIB-ITM-', locations: 'LIB-LOC-', mechanics: 'LIB-MECH-N', sensors: 'LIB-SEN-N',
@@ -336,7 +351,8 @@ export function makeEmptyProject(name = 'Untitled game') {
     // adjustable opacity and placement ('app' whole workspace | 'content'
     // behind the main content area). File menu → Set game backdrop…
     meta: { name, prefix: 'GAME', createdAt: Date.now(), hero: { image: null, opacity: 0.25, placement: 'app' }, timeline: { startMin: 540, endMin: 1020 } },
-    items: {}, locations: {}, sensors: {}, mechanics: {}, facts: {}, nodes: {}, edges: [], alignments: [], storyTrack: {}, teams: {}, players: {},
+    items: {}, locations: {}, sensors: {}, mechanics: {}, facts: {}, nodes: {}, edges: [],
+    taskNodes: {}, taskEdges: [], alignments: [], storyTrack: {}, teams: {}, players: {},
   };
 }
 
@@ -435,7 +451,18 @@ export function makeProjectSeed() {
     // nodes (sets[]) and fact-gated branches (see edges). Nodes with a teamId
     // belong to that team's lane; teamId:null is shared across all teams.
     nodes: {
-      'N-BRIEF': { id: 'N-BRIEF', kind: 'beat', title: 'Briefing', x: 40, y: 90, body: 'Teams receive the crash-site dossier and a sealed radio frequency.', color: null, teamId: null, sets: [], locationId: null, itemId: null, mechanicIds: [], sensorIds: [] },
+      'N-BRIEF': {
+        id: 'N-BRIEF', kind: 'beat', title: 'Briefing', x: 40, y: 90, body: 'Teams receive the crash-site dossier and a sealed radio frequency.', color: null, teamId: null, sets: [], locationId: null, itemId: null, mechanicIds: [], sensorIds: [],
+        // Double-click this node on the canvas to open its detail graph.
+        sub: {
+          nodes: {
+            D1: { id: 'D1', kind: 'placement', title: 'Muster point', x: 40, y: 60, body: 'All teams gather at the loading dock, out-of-game, before the clock starts.', color: null },
+            D2: { id: 'D2', kind: 'prop', title: 'Dossier + sealed frequency', x: 340, y: 60, body: 'One printed dossier per team; radio frequency in a sealed envelope opened on the GM cue.', color: null },
+            D3: { id: 'D3', kind: 'effect', title: 'Cold-open read', x: 640, y: 60, body: 'GM reads the cold-open aloud; house lights drop to work-lights on the last line.', color: null },
+          },
+          edges: [{ from: 'D1', to: 'D2', label: 'hand out', color: null }, { from: 'D2', to: 'D3', label: 'then', color: null }],
+        },
+      },
       'N-S7': { id: 'N-S7', kind: 'location', title: 'Sector 7 Warehouse', x: 380, y: 40, body: '2 patrols · marked safety zone', color: null, teamId: null, sets: [], locationId: 'LOC-S7', itemId: null, mechanicIds: [], sensorIds: ['RFID-07', 'MOT-04'], startMin: 540, durationMin: 60 },
       'N-KEY': { id: 'N-KEY', kind: 'objective', title: 'Retrieve Cipher-Key', x: 380, y: 300, body: 'Success unlocks Sector 8.', color: null, teamId: 'T-RAVEN', sets: [{ factId: 'F-KEY', to: 'set' }], locationId: 'LOC-S7', itemId: 'CHM-A-004', mechanicIds: ['LIB-MECH-LOCK'], sensorIds: ['RFID-07'], startMin: 600, durationMin: 45 },
       'N-CHOICE': { id: 'N-CHOICE', kind: 'branch', title: 'Breach or bypass?', x: 720, y: 170, body: 'Force the locker corridor (risk the alarm) or take the slow maintenance bypass.', color: null, teamId: 'T-RAVEN', sets: [], locationId: 'LOC-S7', itemId: null, mechanicIds: [], sensorIds: [] },
@@ -475,6 +502,45 @@ export function makeProjectSeed() {
       'N-BRIEF': { x: 60, y: 40 }, 'N-CHOICE': { x: 60, y: 200 }, 'N-REVEAL': { x: 60, y: 360 },
       'N-TWIST': { x: 340, y: 40 }, 'N-RECOV': { x: 340, y: 200 }, 'N-END': { x: 340, y: 360 },
     },
+
+    // TASKS: the surface task flow (linear + branching). Each task node carries
+    // its own nested `sub` detail graph — double-click a task to open it and
+    // spec where to stand, how many tries, props, powers, effects.
+    taskNodes: {
+      'TSK-1': { id: 'TSK-1', kind: 'task', title: 'Assemble at Sector 7', x: 40, y: 200, body: 'All teams reach the warehouse floor and check in.', color: null },
+      'TSK-2': { id: 'TSK-2', kind: 'task', title: 'Retrieve the Cipher-Key', x: 360, y: 200, body: 'Recover the brass key from the locker corridor.', color: null,
+        sub: {
+          nodes: {
+            D1: { id: 'D1', kind: 'placement', title: 'Locker corridor, bay 12', x: 40, y: 60, body: 'Key sits in locker 12; approach from the south aisle only.', color: null },
+            D2: { id: 'D2', kind: 'rule', title: '3 pick attempts', x: 340, y: 60, body: 'Three tries on the practice lock; a third failure raises the alarm.', color: null },
+            D3: { id: 'D3', kind: 'prop', title: 'Brass key + NFC tag', x: 640, y: 60, body: 'Cast brass key with an NFC tag; the reader confirms pickup.', color: null },
+          },
+          edges: [{ from: 'D1', to: 'D2', label: 'on arrival', color: null }, { from: 'D2', to: 'D3', label: 'on success', color: null }],
+        } },
+      'TSK-3': { id: 'TSK-3', kind: 'task', title: 'Decode the Dataslate', x: 680, y: 90, body: 'Solve the cipher at the comms bench.', color: null },
+      'TSK-4': { id: 'TSK-4', kind: 'task', title: 'Score the extraction beacon', x: 680, y: 320, body: 'Land the beacon in the extraction crate to call exfil.', color: null,
+        sub: {
+          nodes: {
+            D1: { id: 'D1', kind: 'placement', title: 'Throw line: 3 m from the crate', x: 40, y: 40, body: 'Tape a throw line 3 metres from the net crate; feet behind the line.', color: null },
+            D2: { id: 'D2', kind: 'rule', title: '3 attempts · must land inside', x: 340, y: 40, body: 'Three throws; the foam beacon must come to rest inside the crate. Regulation soft ball only.', color: null },
+            D3: { id: 'D3', kind: 'prop', title: 'Foam beacon ×2, net crate', x: 640, y: 40, body: 'Two foam beacon props (one spare), one open-top net crate.', color: null },
+            D4: { id: 'D4', kind: 'power', title: 'Raven: one re-throw', x: 340, y: 220, body: 'If Team Raven never used their lockpick kit, they may re-take one failed throw.', color: null },
+            D5: { id: 'D5', kind: 'effect', title: 'Success: green ring + siren', x: 640, y: 220, body: 'On a good landing: beacon LED ring turns green and a short siren plays on comms.', color: null },
+          },
+          edges: [
+            { from: 'D1', to: 'D2', label: 'setup', color: null },
+            { from: 'D2', to: 'D3', label: 'needs', color: null },
+            { from: 'D2', to: 'D4', label: 'if eligible', color: null },
+            { from: 'D2', to: 'D5', label: 'on success', color: null },
+          ],
+        } },
+    },
+    taskEdges: [
+      { from: 'TSK-1', to: 'TSK-2', label: 'assembled', color: null },
+      { from: 'TSK-2', to: 'TSK-3', label: 'key in hand → decode', color: null },
+      { from: 'TSK-2', to: 'TSK-4', label: 'or skip straight to exfil', color: null },
+      { from: 'TSK-3', to: 'TSK-4', label: 'decoded', color: null },
+    ],
 
     teams: {
       'T-RAVEN': { id: 'T-RAVEN', name: 'Team Raven', color: '#5CA8F5', focus: 'Infiltration specialists · returning crew' },

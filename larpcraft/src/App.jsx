@@ -8,20 +8,20 @@ import Teams from './views/Teams.jsx';
 import Locations from './views/Locations.jsx';
 import Library from './views/Library.jsx';
 import GameMasterRules from './views/GameMasterRules.jsx';
-import GameMechanics from './views/GameMechanics.jsx';
 import Weaver from './views/Weaver.jsx';
 import FactsView from './views/FactsView.jsx';
+import TasksView from './views/TasksView.jsx';
 
 const BUILD_VIEWS = [
   { id: 'flow', label: 'Narrative & Quests', color: 'var(--c-narrative)', comp: ScenarioFlow, count: (p) => Object.keys(p.nodes).length },
-  { id: 'facts', label: 'Facts & State', color: 'var(--c-sensor)', comp: FactsView, count: (p) => Object.keys(p.facts ?? {}).length },
+  { id: 'tasks', label: 'Tasks', color: 'var(--c-mechanic)', comp: TasksView, count: (p) => Object.keys(p.taskNodes ?? {}).length },
   { id: 'weaver', label: 'Weaver', color: 'var(--c-sensor)', comp: Weaver, count: (p) => (p.alignments ?? []).length },
   { id: 'locations', label: 'Locations', color: 'var(--c-location)', comp: Locations, count: (p) => Object.keys(p.locations).length },
   { id: 'items', label: 'Items & Gadgets', color: 'var(--c-item)', comp: ItemDatabase, count: (p) => Object.keys(p.items).length },
-  { id: 'mechanics', label: 'Mechanics', color: 'var(--c-mechanic)', comp: GameMechanics, count: (p) => Object.keys(p.mechanics ?? {}).length },
 ];
 const MANAGE_VIEWS = [
   { id: 'teams', label: 'Players & Teams', color: 'var(--c-mechanic)', comp: Teams, count: (p) => Object.keys(p.players).length },
+  { id: 'facts', label: 'Facts & State', color: 'var(--c-sensor)', comp: FactsView, count: (p) => Object.keys(p.facts ?? {}).length },
 ];
 
 // The Library, grouped: physical templates, game mechanics, story content.

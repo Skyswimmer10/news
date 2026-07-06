@@ -6,7 +6,10 @@ import StructureThumb from '../components/StructureThumb.jsx';
 import CsvButtons from '../components/CsvButtons.jsx';
 import { importStory } from '../state/bridge.js';
 import { genId } from '../data/csvSchemas.js';
-import { NARR_NODE_TYPES, FACT_KINDS } from '../data/seed.js';
+import { NARR_NODE_TYPES, FACT_KINDS, TASK_DETAIL_TYPES } from '../data/seed.js';
+import GraphEditor from '../components/GraphEditor.jsx';
+
+const DETAIL_PALETTE = Object.values(TASK_DETAIL_TYPES);
 
 export const nodeColor = (n) => n.color || ENTITY_COLORS[n.kind] || '#8B92A6';
 const nodeIcon = (n) => NARR_NODE_TYPES[n.kind]?.icon || null;
@@ -54,6 +57,8 @@ export default function ScenarioFlow({ selection, onSelect }) {
   const dispatch = useDispatch();
   const [importing, setImporting] = useState(false);
   const [lane, setLane] = useState('all'); // 'all' | teamId
+  const [openId, setOpenId] = useState(null); // narrative node drilled into
+  const openNode = openId ? s.nodes[openId] : null;
   const selId = selection?.kind === 'node' ? selection.id : null;
   const empty = Object.keys(s.nodes).length === 0;
   const teams = Object.values(s.teams);
@@ -85,6 +90,25 @@ export default function ScenarioFlow({ selection, onSelect }) {
     const fk = FACT_KINDS[f.kind] || { color: '#8B92A6' };
     return { color: fk.color, title: `${e.expect === 'unset' ? 'NOT ' : ''}${f.name} · ${fk.label ?? f.kind}` };
   };
+
+  // Drilled into a narrative node's nested detail graph (2-level nesting).
+  if (openNode) {
+    return (
+      <div className="main">
+        <div className="mhead">
+          <div>
+            <div className="crumb">{s.meta.name} / <button className="crumblink" onClick={() => { setOpenId(null); onSelect(null); }}>Narrative &amp; Quests</button> / <b>{openNode.title}</b></div>
+            <h2>{openNode.title} · detail</h2>
+          </div>
+          <div className="right"><button className="btn" onClick={() => { setOpenId(null); onSelect(null); }}>← Back to narrative</button></div>
+        </div>
+        <div className="subintro dim">Detail nodes for <b>{openNode.title}</b> — staging, props, powers and effects that make this beat concrete.</div>
+        <GraphEditor scope={{ coll: 'nodes', parentId: openId }} palette={DETAIL_PALETTE}
+          idPrefix={`${s.meta.prefix}-DET`} selection={selection} onSelect={onSelect} />
+        <div className="statusbar"><span>Building detail for a narrative node · drag to arrange · ○ port connects · Delete removes · ← Back returns to the questline.</span></div>
+      </div>
+    );
+  }
 
   return (
     <div className="main">
@@ -133,6 +157,7 @@ export default function ScenarioFlow({ selection, onSelect }) {
         <FlowCanvas
           nodes={s.nodes} edges={s.edges} selId={selId} colorOf={nodeColor}
           iconOf={nodeIcon} teamOf={teamOf} dimNode={dimNode} edgeFact={edgeFact}
+          onOpenNode={(id) => { setOpenId(id); onSelect(null); }}
           onSelect={(id) => onSelect({ kind: 'node', id })}
           onMove={(id, x, y) => dispatch({ type: 'UPDATE_ENTITY', coll: 'nodes', id, patch: { x, y } })}
           onConnect={(from, to) => dispatch({ type: 'ADD_EDGE', from, to, color: nodeColor(s.nodes[from]) })}
@@ -174,7 +199,7 @@ export default function ScenarioFlow({ selection, onSelect }) {
         />
       )}
       <div className="statusbar">
-        <span>Drag to arrange · <b>○ port</b> connects · click a connection's label to set its <b>plain-language condition</b> · a coloured dot marks a fact gate · <b>Ctrl+C/V</b> copy · <b>Delete</b> removes.</span>
+        <span>Drag · <b>○ port</b> connects · <b>double-click</b> (or ⧉) opens a node's detail graph · click a connection's label to set its <b>condition</b> · a dot marks a fact gate · <b>Delete</b> removes.</span>
       </div>
       {importing && <StructureImportModal onClose={() => setImporting(false)}
         onImported={(id) => { setImporting(false); onSelect({ kind: 'node', id }); }} />}

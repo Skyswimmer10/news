@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { useGame, useDispatch, useLibrary, useLibraryDispatch } from '../state/store.jsx';
-import { resolveNode, itemsAssignedToPlayer, sensorsAssignedToPlayer } from '../state/reducer.js';
+import { resolveNode, itemsAssignedToPlayer, sensorsAssignedToPlayer, locateGraph } from '../state/reducer.js';
 import { importItem, importLocation, importSensor, importStory, importNarrative, importMechPrimitive } from '../state/bridge.js';
 import { Chip, SectionLabel, BuildFlow, Pill, ENTITY_COLORS, PrimIcon } from './bits.jsx';
 import ImageUploader from './ImageUploader.jsx';
-import { NARR_NODE_TYPES, NARRATIVE_KINDS, FACT_KINDS } from '../data/seed.js';
+import { NARR_NODE_TYPES, NARRATIVE_KINDS, FACT_KINDS, TASK_DETAIL_TYPES } from '../data/seed.js';
 
 const minToTime = (m) => (Number.isFinite(m) ? `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}` : '');
 const timeToMin = (t) => { const [h, m] = (t || '').split(':').map(Number); return Number.isFinite(h) && Number.isFinite(m) ? h * 60 + m : null; };
@@ -463,6 +463,53 @@ function FactPanel({ fact }) {
   );
 }
 
+// ---- A node inside a located graph: a surface Task, or a nested detail node
+// (of a task or a narrative beat). Edits flow through the generic GRAPH_* path.
+function GraphNodePanel({ scope, id }) {
+  const s = useGame();
+  const dispatch = useDispatch();
+  const g = locateGraph(s, scope);
+  const n = g.nodes[id];
+  if (!n) return <div className="empty">Node not found.</div>;
+  const upd = (patch) => dispatch({ type: 'GRAPH_UPDATE_NODE', scope, id, patch });
+  const t = TASK_DETAIL_TYPES[n.kind];
+  const isTask = n.kind === 'task';
+  const color = n.color || t?.color || ENTITY_COLORS[n.kind] || '#8B92A6';
+  const subCount = Object.keys(n.sub?.nodes || {}).length;
+  return (
+    <>
+      <div className="ihead">
+        <div className="ihrow"><span className="sq big" style={{ background: color }}>{t && <PrimIcon icon={t.icon} color="#fff" size={13} />}</span><h3>{n.title}</h3></div>
+        <div className="sub">{t?.label ?? (isTask ? 'Task' : n.kind)}{scope.parentId ? ' · detail node' : ''} · {n.id}</div>
+      </div>
+      {!isTask && (
+        <div className="isect">
+          <SectionLabel>Detail type</SectionLabel>
+          <select className="field-input" value={n.kind} onChange={(e) => upd({ kind: e.target.value })}>
+            {Object.values(TASK_DETAIL_TYPES).map((x) => <option key={x.id} value={x.id}>{x.label}</option>)}
+            {!t && <option value={n.kind}>{n.kind}</option>}
+          </select>
+          {t && <div className="hint">{t.blurb}</div>}
+        </div>
+      )}
+      <TextField label={isTask ? 'Task name' : 'Title'} value={n.title} onCommit={(v) => upd({ title: v })} />
+      <TextField label={isTask ? 'What this task is' : 'Detail'} textarea value={n.body} onCommit={(v) => upd({ body: v })} />
+      <div className="isect">
+        <SectionLabel>Image · optional</SectionLabel>
+        <ImageUploader entity={n} label="Node image" onImage={(img) => upd({ image: img })} />
+      </div>
+      <div className="isect">
+        <SectionLabel>Node color</SectionLabel>
+        <div className="chips">
+          {NODE_SWATCHES.map((c) => <button key={c} className={`swatch${color === c ? ' on' : ''}`} style={{ background: c }} onClick={() => upd({ color: c })} />)}
+          <button className="linkbtn" onClick={() => upd({ color: null })}>Auto</button>
+        </div>
+      </div>
+      {isTask && <div className="isect"><div className="hint">Double-click this task on the canvas to open its detail graph{subCount > 0 ? ` (${subCount} detail node${subCount === 1 ? '' : 's'})` : ''}.</div></div>}
+    </>
+  );
+}
+
 // ---- Library TEMPLATE panels: edit the master blueprint, import instances ----
 function LibItemPanel({ template }) {
   const lib = useLibrary();
@@ -717,6 +764,7 @@ export default function Inspector({ selection, onSelect }) {
   const { kind, id } = selection;
   if (kind === 'item' && s.items[id]) body = <ItemPanel item={s.items[id]} />;
   else if (kind === 'fact' && s.facts?.[id]) body = <FactPanel fact={s.facts[id]} />;
+  else if (kind === 'graphnode') body = <GraphNodePanel scope={selection.scope} id={id} />;
   else if (kind === 'location' && s.locations[id]) body = <LocationPanel location={s.locations[id]} />;
   else if (kind === 'player' && s.players[id]) body = <PlayerPanel player={s.players[id]} />;
   else if (kind === 'lib-items' && lib.items[id]) body = <LibItemPanel template={lib.items[id]} />;

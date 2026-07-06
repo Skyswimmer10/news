@@ -2,6 +2,29 @@
 // anywhere (inspector, teams screen, uploader) is visible everywhere on the
 // next render — there is exactly one copy of each entity.
 
+// ---- located graphs (for hierarchical / nested node editing) ----
+// A `scope` addresses one editable {nodes, edges} graph in the project:
+//   { coll:'nodes' }                      → the Narrative & Quests graph
+//   { coll:'taskNodes' }                  → the surface Task flow
+//   { coll:'nodes'|'taskNodes', parentId } → that parent node's nested `.sub`
+const topKeys = (coll) => (coll === 'taskNodes' ? { nk: 'taskNodes', ek: 'taskEdges' } : { nk: 'nodes', ek: 'edges' });
+
+export function locateGraph(state, scope) {
+  const { coll, parentId } = scope;
+  const { nk, ek } = topKeys(coll);
+  if (!parentId) return { nodes: state[nk] || {}, edges: state[ek] || [] };
+  const parent = (state[nk] || {})[parentId];
+  const sub = parent?.sub || { nodes: {}, edges: [] };
+  return { nodes: sub.nodes || {}, edges: sub.edges || [] };
+}
+function writeGraph(state, scope, next) {
+  const { coll, parentId } = scope;
+  const { nk, ek } = topKeys(coll);
+  if (!parentId) return { ...state, [nk]: next.nodes, [ek]: next.edges };
+  const parent = state[nk][parentId];
+  return { ...state, [nk]: { ...state[nk], [parentId]: { ...parent, sub: { nodes: next.nodes, edges: next.edges } } } };
+}
+
 export function reducer(state, action) {
   switch (action.type) {
     case 'RESET':
@@ -182,6 +205,45 @@ export function reducer(state, action) {
 
     case 'REMOVE_EDGE': {
       return { ...state, edges: state.edges.filter((e) => !(e.from === action.from && e.to === action.to)) };
+    }
+
+    // ---- generic located-graph editing (surface task flow + nested subs) ----
+    case 'GRAPH_ADD_NODE': {
+      const { scope, node } = action;
+      const g = locateGraph(state, scope);
+      if (!node?.id || g.nodes[node.id]) return state;
+      return writeGraph(state, scope, { nodes: { ...g.nodes, [node.id]: node }, edges: g.edges });
+    }
+    case 'GRAPH_UPDATE_NODE': {
+      const { scope, id, patch } = action;
+      const g = locateGraph(state, scope);
+      if (!g.nodes[id]) return state;
+      return writeGraph(state, scope, { nodes: { ...g.nodes, [id]: { ...g.nodes[id], ...patch } }, edges: g.edges });
+    }
+    case 'GRAPH_DELETE_NODE': {
+      const { scope, id } = action;
+      const g = locateGraph(state, scope);
+      if (!g.nodes[id]) return state;
+      const nodes = { ...g.nodes };
+      delete nodes[id];
+      return writeGraph(state, scope, { nodes, edges: g.edges.filter((e) => e.from !== id && e.to !== id) });
+    }
+    case 'GRAPH_ADD_EDGE': {
+      const { scope, from, to, label = '', color = null } = action;
+      const g = locateGraph(state, scope);
+      if (from === to || !g.nodes[from] || !g.nodes[to]) return state;
+      if (g.edges.some((e) => e.from === from && e.to === to)) return state;
+      return writeGraph(state, scope, { nodes: g.nodes, edges: [...g.edges, { from, to, label, color }] });
+    }
+    case 'GRAPH_UPDATE_EDGE': {
+      const { scope, from, to, patch } = action;
+      const g = locateGraph(state, scope);
+      return writeGraph(state, scope, { nodes: g.nodes, edges: g.edges.map((e) => (e.from === from && e.to === to ? { ...e, ...patch } : e)) });
+    }
+    case 'GRAPH_REMOVE_EDGE': {
+      const { scope, from, to } = action;
+      const g = locateGraph(state, scope);
+      return writeGraph(state, scope, { nodes: g.nodes, edges: g.edges.filter((e) => !(e.from === from && e.to === to)) });
     }
 
     // Uploaded file lands on the entity's image field — `field` picks which

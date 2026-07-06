@@ -10,6 +10,8 @@ export const KIND_LABEL = {
   story: 'Story beat', location: 'Location', objective: 'Objective', enemy: 'Enemy encounter', mechanic: 'Mechanic', sensor: 'Sensor trigger',
   // Narrative v2 typed nodes.
   beat: 'Beat', reveal: 'Reveal', branch: 'Branch', fact: 'Fact change', converge: 'Convergence', timed: 'Timed event', recovery: 'Recovery',
+  // Tasks + task-detail node types.
+  task: 'Task', placement: 'Placement', rule: 'Rule', prop: 'Prop / kit', power: 'Power', effect: 'Effect',
 };
 const SWATCHES = ['#5CA8F5', '#43BF87', '#E0A23C', '#E86464', '#A87BF0', '#3EC6D6', '#E8D25C', '#F08CB4'];
 
@@ -27,6 +29,8 @@ export default function FlowCanvas({
   //   iconOf(node) → icon name · teamOf(node) → {name,color} · dimNode(node) →
   //   bool · edgeFact(edge) → {color,title} to show a fact dot on a connection.
   iconOf, teamOf, dimNode, edgeFact,
+  // onOpenNode(id): double-click a node to drill into its nested sub-graph.
+  onOpenNode,
 }) {
   const canvasRef = useRef(null);
   const dragRef = useRef(null);
@@ -177,6 +181,7 @@ export default function FlowCanvas({
             onPointerDown={(e) => onNodeDown(e, n)}
             onPointerMove={onNodeMove}
             onPointerUp={(e) => onNodeUp(e, n)}
+            onDoubleClick={onOpenNode ? (e) => { e.stopPropagation(); onOpenNode(n.id); } : undefined}
             onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onSelect(n.id); }}
           >
             <div className="nh">
@@ -188,6 +193,13 @@ export default function FlowCanvas({
               ) : <span className="icpick" style={{ background: color }}>{icon && <PrimIcon icon={icon} color="#fff" size={12} />}</span>}
               <div className="nhmeta"><small style={{ color }}>{KIND_LABEL[n.kind] ?? n.kind}</small><b>{n.title}</b></div>
               {team && <span className="nteam" style={{ background: team.color }} title={`Lane: ${team.name}`}>{team.name}</span>}
+              {onOpenNode && (
+                <button className="nopen" title="Open detail graph (or double-click the node)"
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={(e) => { e.stopPropagation(); onOpenNode(n.id); }}>
+                  {Object.keys(n.sub?.nodes || {}).length > 0 ? `⧉ ${Object.keys(n.sub.nodes).length}` : '⧉'}
+                </button>
+              )}
             </div>
             <div className="nb">
               {n.image?.dataUrl && <img className="nimg" src={n.image.dataUrl} alt="" draggable={false} />}

@@ -9,6 +9,8 @@ export const ENTITY_COLORS = {
   sensor: '#3EC6D6',
   // Narrative v2 typed nodes.
   beat: '#5CA8F5', reveal: '#F08CB4', branch: '#E0A23C', fact: '#3EC6D6', converge: '#A87BF0', timed: '#E8D25C', recovery: '#E86464',
+  // Tasks + task-detail node types.
+  task: '#5BC0BE', placement: '#43BF87', rule: '#E0A23C', prop: '#3EC6D6', power: '#A87BF0', effect: '#F08CB4',
 };
 
 export const AVAILABILITY = {

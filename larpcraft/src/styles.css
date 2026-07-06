@@ -481,6 +481,15 @@ tbody tr.sel td{background:rgba(224,162,60,.09);box-shadow:inset 3px 0 0 var(--c
 .factmeta{display:flex;gap:10px;font-size:10px}
 .factbound{font-weight:700}
 
+/* ---- Tasks + hierarchical / nested node graphs ---- */
+.nopen{margin-left:auto;font-size:10px;font-weight:800;color:var(--muted);background:var(--raised);border:1px solid var(--line);border-radius:6px;padding:2px 6px;line-height:1;cursor:pointer;flex:none}
+.nteam ~ .nopen{margin-left:6px}
+.nopen:hover{color:var(--ink);border-color:var(--brand)}
+.nsub{margin-top:8px;font-size:10.5px;font-style:italic}
+.subintro{padding:2px 20px 12px;font-size:12px;line-height:1.55;max-width:920px}
+.crumblink{color:var(--muted);font:inherit;cursor:pointer;padding:0;border-radius:4px}
+.crumblink:hover{color:var(--brand);text-decoration:underline}
+
 /* teams */
 .teamgrid{flex:1;overflow-y:auto;border-top:1px solid var(--line-soft);padding:16px 20px;display:flex;flex-direction:column;gap:14px}
 .team{background:var(--panel);border:1px solid var(--line);border-radius:12px}
